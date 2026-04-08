@@ -2,12 +2,18 @@ import { useState } from "react";
 
 import { Button } from "../ui/button";
 
-export function Hero() {
-  const [loading, setLoading] = useState(false);
+export function Hero({
+  loading,
+  onStart,
+}: {
+  loading: boolean;
+  onStart: () => void;
+}) {
+  const [localLoading, setLocalLoading] = useState(false);
 
   function handleStart() {
-    setLoading(true);
-    window.setTimeout(() => setLoading(false), 900);
+    setLocalLoading(true);
+    onStart();
   }
 
   return (
@@ -26,7 +32,7 @@ export function Hero() {
           </p>
         </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <Button loading={loading} onClick={handleStart}>
+          <Button loading={loading || localLoading} onClick={handleStart}>
             开始梳理我的网站
           </Button>
           <p className="text-[14px] leading-[1.45] text-white/52">

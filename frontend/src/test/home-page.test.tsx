@@ -1,9 +1,26 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { App } from "../app";
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/sessions")) {
+        return new Response(JSON.stringify({ token: "demo-token" }), { status: 201 });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 test("首页展示五段式内容和主 CTA", () => {
   render(
@@ -34,5 +51,5 @@ test("首页 CTA 点击后进入 loading 状态", () => {
 
   fireEvent.click(screen.getAllByRole("button", { name: "开始梳理我的网站" })[0]);
 
-  expect(screen.getByRole("button", { name: "正在准备梳理页..." })).toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "正在准备梳理页..." })).toHaveLength(2);
 });

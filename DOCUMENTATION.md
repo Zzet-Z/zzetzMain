@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 8 — 需求梳理页 UI 与前后端接线
-- Current task: Task 8 — 实现需求梳理页六组件与 API 接线
-- Status: Task 7 completed, Task 8 ready to start
+- Current milestone: Milestone 9 — 最终验证与文档
+- Current task: Task 9 — 全量回归与人工验收
+- Status: Task 8 completed, Task 9 ready to start
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,6 @@
 - （无）
 
 ### Not started
-- Milestone 8: 需求梳理页 UI 与前后端接线（Task 8）
 - Milestone 9: 最终验证与文档（Task 9）
 
 ### Blocked
@@ -31,6 +30,75 @@
 
 ## Task log
 
+### [2026-04-08] Task 8: 实现需求梳理页六组件与前后端接线
+**Summary**
+- 新建 `frontend/src/lib/api.ts` 与 `frontend/src/lib/types.ts`，补齐 session / message / attachment / document 的前端 API 契约
+- 新建 `StepHeader / TemplateSelector / StyleSelector / ChatPanel / AttachmentPanel / SummaryPanel` 六个 intake 组件，并落地 `routes/session-page.tsx`
+- 首页 CTA 现在会真实创建 session 并跳转到 `/session/:token`，需求页接上 3 秒 session 轮询与 5 秒文档轮询
+- 需求页增加中文错误提示、排队状态文案、附件上传回显，以及摘要面板里的中文状态/阶段映射
+- 浏览器联调发现真实 LLM 主链路下摘要提取 prompt 过弱，补强 `backend/app/prompts/extract_summary.md` 后，真实会话已能从 `positioning` 推进到 `content`
+
+**Files changed**
+- `frontend/src/app.tsx`
+- `frontend/src/lib/api.ts`
+- `frontend/src/lib/types.ts`
+- `frontend/src/routes/home-page.tsx`
+- `frontend/src/routes/session-page.tsx`
+- `frontend/src/components/home/hero.tsx`
+- `frontend/src/components/home/final-cta.tsx`
+- `frontend/src/components/intake/step-header.tsx`
+- `frontend/src/components/intake/template-selector.tsx`
+- `frontend/src/components/intake/style-selector.tsx`
+- `frontend/src/components/intake/chat-panel.tsx`
+- `frontend/src/components/intake/attachment-panel.tsx`
+- `frontend/src/components/intake/summary-panel.tsx`
+- `frontend/src/test/home-page.test.tsx`
+- `frontend/src/test/session-page.test.tsx`
+- `frontend/src/test/session-flow.test.tsx`
+- `frontend/src/test/mobile-states.test.tsx`
+- `backend/app/prompts/extract_summary.md`
+- `backend/tests/test_llm_orchestrator.py`
+
+**Validation run**
+- 红灯确认：
+  - `cd frontend && npm test -- session-page.test.tsx session-flow.test.tsx mobile-states.test.tsx`
+- 绿灯验证：
+  - `cd frontend && npm test -- session-page.test.tsx session-flow.test.tsx mobile-states.test.tsx`
+  - `cd frontend && npm test -- home-page.test.tsx app-shell.test.tsx`
+  - `cd frontend && npm run build`
+  - `cd backend && pytest tests/test_llm_orchestrator.py -q`
+  - `cd backend && pytest tests/test_queue_and_generation.py -q`
+  - `cd backend && pytest -q`
+  - `agent-browser` 真实浏览器验收：
+    - 手机视口打开 `http://127.0.0.1:5173/`，执行 `document.documentElement.scrollWidth <= window.innerWidth`
+    - 打开真实 `session/:token` 页面，确认模板、风格、发送、摘要、附件入口可见
+    - 真实选择模板 `个人作品页` 与风格 `极简高级`，等待页面出现 `当前阶段：定位`
+    - 输入真实中文定位信息并发送，等待页面出现 `当前阶段：内容`
+    - 等待摘要区出现 `准备做个人品牌升级的咨询客户` 与 `建立专业信任`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 初始缺少 `/session/:token` 路由、intake 组件与 API 接线
+- 绿灯阶段全部通过：
+  - Task 8 前端单测通过（4 tests）
+  - 首页回归测试通过（3 tests）
+  - 前端构建通过
+  - 后端全量测试通过（28 passed）
+  - 真实浏览器下，需求页能通过真实 LLM 主链路把阶段从 `positioning` 推进到 `content`，摘要也会更新
+
+**Notes**
+- `agent-browser` 的原生 `click` 在当前 Vite 页面上没有稳定触发 React 按钮事件，本次浏览器验收改用浏览器上下文里的 DOM click；仍然是 `agent-browser` 驱动的真实浏览器链路
+- `agent-browser` 无法稳定驱动系统文件选择器，因此浏览器验收覆盖了附件上传入口可见；真正的上传回调用前端单测锁住，上传 API 则已在 Task 6 后端测试覆盖
+- 首页 CTA 现在采用全局 `isCreating` loading 语义，因此两个 CTA 会同时进入 loading；相应测试已同步调整
+- `extract_summary.md` 现在显式要求输出 `positioning_ready / content_ready / features_ready`，避免真实 LLM 返回过于松散的 JSON
+
+**Known issues**
+- 真实 LLM 返回耗时波动较大，浏览器里一次定位消息到阶段推进大约需要数十秒，Task 9 人工验收时要预留等待时间
+- 当前需求页还没有独立的“开始生成 PRD”按钮；现有主链路可以推进到 `generate`，但最终生成动作仍需要在 Task 9 总验收时一起补看
+
+**Next suggested step**
+- 执行 Milestone 9 / Task 9：跑完整前后端回归、校正 README、完成 11 步人工验收链路
+- 优先检查从 `content -> features -> generate -> document ready` 的整段真实链路，并决定是否需要补一个显式生成按钮或保持“发送即推进”的当前交互
 ### [2026-04-08] Task 7: 实现首页五段式移动端优先 UI
 **Summary**
 - 先按要求读取 `apple/DESIGN.md`，然后将首页拆为 `Hero / Problem / Process / OutputPreview / FinalCta` 五段

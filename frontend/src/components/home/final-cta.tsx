@@ -2,12 +2,18 @@ import { useState } from "react";
 
 import { Button } from "../ui/button";
 
-export function FinalCta() {
-  const [loading, setLoading] = useState(false);
+export function FinalCta({
+  loading,
+  onStart,
+}: {
+  loading: boolean;
+  onStart: () => void;
+}) {
+  const [localLoading, setLocalLoading] = useState(false);
 
   function handleStart() {
-    setLoading(true);
-    window.setTimeout(() => setLoading(false), 900);
+    setLocalLoading(true);
+    onStart();
   }
 
   return (
@@ -20,7 +26,7 @@ export function FinalCta() {
           <p className="text-[17px] leading-[1.7] text-white/68">
             不用一次说完整，只要先说出你想做的网站，我们会一步一步把它整理成可执行方案。
           </p>
-          <Button loading={loading} onClick={handleStart}>
+          <Button loading={loading || localLoading} onClick={handleStart}>
             开始梳理我的网站
           </Button>
         </div>

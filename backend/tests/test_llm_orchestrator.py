@@ -5,6 +5,7 @@ from app.services.llm_orchestrator import (
     build_chat_request,
     extract_summary_update,
     generate_stage_reply,
+    load_prompt,
     render_prd_with_llm,
 )
 from app.services.summary_builder import merge_summary, should_refresh_summary
@@ -198,6 +199,15 @@ def test_extract_summary_update_returns_existing_summary_on_invalid_json():
     )
 
     assert result == existing_summary
+
+
+def test_extract_summary_prompt_requires_ready_flags():
+    prompt = load_prompt("extract_summary.md")
+
+    assert "positioning_ready" in prompt
+    assert "content_ready" in prompt
+    assert "features_ready" in prompt
+    assert "只能输出一个 JSON 对象" in prompt
 
 
 def test_render_prd_with_llm_returns_summary_text_and_markdown():
