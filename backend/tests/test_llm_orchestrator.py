@@ -7,6 +7,7 @@ from app.services.llm_orchestrator import (
     generate_stage_reply,
     render_prd_with_llm,
 )
+from app.services.summary_builder import merge_summary, should_refresh_summary
 
 
 def test_build_chat_request_uses_chinese_and_stage_prompt():
@@ -20,6 +21,44 @@ def test_build_chat_request_uses_chinese_and_stage_prompt():
     assert request["locale"] == "zh-CN"
     assert "简体中文" in request["system_prompt"]
     assert "个人作品页" in request["context_text"]
+
+
+def test_skip_template_moves_to_style():
+    from app.services.intake_state_machine import next_stage_for_session
+
+    result = next_stage_for_session(
+        current_stage="template",
+        selected_template=None,
+        selected_style=None,
+        summary_payload={},
+        user_action="skip",
+    )
+
+    assert result == "style"
+
+
+def test_should_refresh_summary_when_stage_completed():
+    assert (
+        should_refresh_summary(
+            current_stage="positioning",
+            stage_completed=True,
+            generation_requested=False,
+        )
+        is True
+    )
+
+
+def test_merge_summary_skips_empty_values():
+    merged = merge_summary(
+        {"website_type": "个人作品页", "visual_direction": "极简高级"},
+        {"visual_direction": "", "positioning_ready": True},
+    )
+
+    assert merged == {
+        "website_type": "个人作品页",
+        "visual_direction": "极简高级",
+        "positioning_ready": True,
+    }
 
 
 def test_llm_client_sends_http_request(monkeypatch):

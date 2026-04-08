@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 4 — 阶段状态机与对话引导
-- Current task: Task 4 — 实现六阶段状态机、消息路由与摘要提取
-- Status: Task 3 completed, Task 4 ready to start
+- Current milestone: Milestone 5 — 并发队列与文档生成
+- Current task: Task 5 — 实现 5 会话并发控制、文档生成与轮询
+- Status: Task 4 completed, Task 5 ready to start
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,6 @@
 - （无）
 
 ### Not started
-- Milestone 4: 阶段状态机与对话引导（Task 4）
 - Milestone 5: 并发队列与文档生成（Task 5）
 - Milestone 6: 上传与安全限制（Task 6）
 - Milestone 7: 首页移动端优先 UI（Task 7）
@@ -34,6 +33,51 @@
 ---
 
 ## Task log
+
+### [2026-04-08] Task 4: 实现阶段状态机、真实对话引导与摘要提取策略
+**Summary**
+- 新建 `intake_state_machine.py`，实现六阶段最小推进规则
+- 新建 `summary_builder.py`，封装摘要刷新判断与非空合并策略
+- 新建 `POST /api/sessions/<token>/messages`，接通真实 LLM 编排、消息入库与摘要快照刷新
+- app 工厂注册消息路由；`SessionRecord.updated_at` 增加 `onupdate` 自动更新时间
+
+**Files changed**
+- `backend/app/__init__.py`
+- `backend/app/models.py`
+- `backend/app/routes/messages.py`
+- `backend/app/services/intake_state_machine.py`
+- `backend/app/services/summary_builder.py`
+- `backend/tests/test_llm_orchestrator.py`
+- `backend/tests/test_queue_and_generation.py`
+
+**Validation run**
+- 红灯确认：
+  - `cd backend && pytest tests/test_llm_orchestrator.py::test_skip_template_moves_to_style -q`
+  - `cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q`
+- 绿灯验证：
+  - `cd backend && pytest tests/test_llm_orchestrator.py::test_skip_template_moves_to_style -q`
+  - `cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q`
+  - `cd backend && pytest -q`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 初始因 `app.services.intake_state_machine` 缺失而失败
+  - 补完状态机和摘要策略后，消息路由相关测试继续按预期因路由缺失失败
+- 绿灯阶段全部通过：
+  - 状态机、摘要合并、消息路由、LLM 失败分支测试通过
+  - 后端当前全量测试通过（21 passed）
+
+**Notes**
+- 当前消息路由只实现 Task 4 需要的对话主链路，不提前引入 Task 5 的并发队列和文档生成
+- `template/style` 阶段会无条件刷新摘要，其余阶段由 `stage_completed` 或 `generation_requested` 驱动
+- 消息路由里的中文 502 已落地，便于前端在后续 Task 8 直接消费
+
+**Known issues**
+- `SESSION_CONTEXT.md` 的“最近重要提交”会在下一次任务收尾时补录本次 Task 4 提交 hash
+
+**Next suggested step**
+- 执行 Milestone 5 / Task 5：队列管理、文档生成记录与轮询状态
+- 继续以 `backend/tests/test_queue_and_generation.py` 为核心扩展红灯测试
 
 ### [2026-04-08] Task 3: 接入真实 LLM 客户端与基础编排器
 **Summary**
@@ -247,6 +291,7 @@
 ## Verification history
 | Date | Scope | Commands | Result | Notes |
 |------|-------|----------|--------|-------|
+| 2026-04-08 | Task 4 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_skip_template_moves_to_style -q`; `cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q`; `cd backend && pytest -q` | Passed | 先确认状态机缺失，再补齐状态机、摘要策略与消息路由 |
 | 2026-04-08 | Task 3 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_build_chat_request_uses_chinese_and_stage_prompt -q`; `cd backend && pytest tests/test_llm_orchestrator.py -q`; `cd backend && pytest -q` | Passed | 先确认 LLM 模块缺失，再补齐客户端、编排器和 prompts |
 | 2026-04-08 | Task 2 red/green | `cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_default_state -q`; `cd backend && pytest tests/test_sessions_api.py -q`; `cd backend && pytest -q` | Passed | 先确认 `/api/sessions` 缺失，再补齐 create/get/patch 与 CORS |
 | 2026-04-08 | Task 1 red/green | `cd backend && pytest tests/test_health.py -q`; `cd frontend && npm test -- app-shell.test.tsx`; `cd backend && pytest -q`; `cd frontend && npm run build` | Passed | 红灯先确认缺失应用工厂与前端壳，随后绿灯通过 |
@@ -257,8 +302,8 @@
 ## Handoff notes
 给下一个执行者的说明：
 
-- 当前最应该继续的任务：**Milestone 4 / Task 4 — 实现六阶段状态机、消息路由与摘要提取**
-- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 4 部分
+- 当前最应该继续的任务：**Milestone 5 / Task 5 — 实现 5 会话并发控制、文档生成与轮询**
+- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 5 部分
 - 不要动的区域：`docs/superpowers/` 下的 spec 和 plan 文件
-- 当前最大风险：Task 4 会首次把状态机与真实 LLM 编排接进消息流，容易一口气把 Task 5 的队列/文档生成带进来
-- 推荐先跑的验证命令：Task 4 的红灯从 plan 指定的后端相关测试开始
+- 当前最大风险：Task 5 会开始处理并发上限、排队位置与文档状态流转，容易把上传或前端轮询逻辑提前带进来
+- 推荐先跑的验证命令：Task 5 从 `cd backend && pytest tests/test_queue_and_generation.py -q` 开始

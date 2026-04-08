@@ -19,9 +19,11 @@ def create_app(config_overrides=None):
     CORS(app, resources={r"/api/*": {"origins": app.config["FRONTEND_ORIGIN"]}})
 
     from .routes.health import health_bp
+    from .routes.messages import messages_bp
     from .routes.sessions import sessions_bp
 
     app.register_blueprint(health_bp, url_prefix="/api")
+    app.register_blueprint(messages_bp, url_prefix="/api")
     app.register_blueprint(sessions_bp, url_prefix="/api")
 
     @app.teardown_appcontext
