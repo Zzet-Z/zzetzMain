@@ -10,6 +10,7 @@ export type SessionStatus =
   | "draft"
   | "queued"
   | "active"
+  | "in_progress"
   | "generating_document"
   | "completed"
   | "failed";

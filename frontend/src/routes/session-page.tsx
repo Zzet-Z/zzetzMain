@@ -112,7 +112,7 @@ export function SessionPage({
       !token ||
       !session ||
       session.current_stage !== "generate" ||
-      session.status !== "active" ||
+      (session.status !== "active" && session.status !== "in_progress") ||
       hasRequestedGeneration ||
       isSending
     ) {

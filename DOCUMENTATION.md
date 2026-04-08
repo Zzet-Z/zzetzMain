@@ -4,10 +4,10 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 9 — 最终验证与文档
-- Current task: Task 9 — 全量回归与人工验收
-- Status: Task 9 completed
-- Last updated: 2026-04-08
+- Current milestone: Post-MVP deployment / production hardening
+- Current task: 生产部署验证、消息链路修复、可重复部署脚本
+- Status: In progress
+- Last updated: 2026-04-09
 
 ---
 
@@ -29,6 +29,63 @@
 ---
 
 ## Task log
+
+### [2026-04-09] Production hotfix: 部署验证、消息链路修复与部署脚本
+**Summary**
+- 在 `root@129.204.9.74` 完成前后端生产部署：前端由 `nginx` 暴露在 `80/443`，后端由 `gunicorn` 绑定 `127.0.0.1:5050`
+- 生产验证中拆出三类真实问题：
+  - `gunicorn` 默认 30 秒超时会在 LLM 慢响应时杀死 worker，导致 `/api/sessions/:token/messages` 返回 500
+  - `nginx` `/api` 反代默认超时不足，长请求会先返回 504
+  - `SessionRecord.status` 在消息处理后一直停留在 `active`，数据库中的并发槽位不会释放，后续会话会永久排队
+- 本地以 TDD 修复消息链路：
+  - 顺序处理的消息请求不再耗尽 5 个活跃槽位
+  - 处理中会话完成后落到 `in_progress`
+  - 失败会话落到 `failed`
+  - `LLMClient` 显式 `trust_env=False`，避免宿主机代理环境影响真实模型调用
+- 新增 `scripts/deploy-zzetz-cn.sh`，固化服务器上的 clone/pull、前端构建、后端 venv、systemd、nginx、超时配置与基础健康检查
+- 线上复核结果：
+  - 服务器本机通过仓库内 `LLMClient.from_env().generate()` 返回 `ok`
+  - 真实消息 API 能返回 `201` 与中文 `assistant_reply`
+  - 浏览器侧完成首页 CTA、session 页模板/风格选择与消息发送；同一 token 的后端状态推进到 `positioning`，并写入结构化摘要
+
+**Files changed**
+- `backend/app/routes/messages.py`
+- `backend/app/services/llm_client.py`
+- `backend/tests/test_llm_orchestrator.py`
+- `backend/tests/test_queue_and_generation.py`
+- `frontend/src/components/intake/summary-panel.tsx`
+- `frontend/src/lib/types.ts`
+- `frontend/src/routes/session-page.tsx`
+- `scripts/deploy-zzetz-cn.sh`
+
+**Validation run**
+- TDD 红灯：
+  - `cd backend && pytest tests/test_queue_and_generation.py -q`
+  - `cd backend && pytest tests/test_llm_orchestrator.py -q`
+- 绿灯验证：
+  - `cd backend && pytest -q`
+  - `cd frontend && npm test`
+  - `cd frontend && npm run build`
+  - `bash -n scripts/deploy-zzetz-cn.sh`
+  - 生产接口验证：
+    - `curl https://zzetz.cn/api/health`
+    - `curl https://zzetz.cn/api/sessions -d '{}'`
+    - `PATCH /api/sessions/:token`
+    - `POST /api/sessions/:token/messages`
+  - 生产浏览器验证（`agent-browser`）：
+    - 首页加载与 CTA 可点击
+    - session 页模板/风格切换
+    - 消息发送后同 token 状态推进并写入摘要
+
+**Validation result**
+- 本地测试通过：后端 `37 passed`，前端 `5 files / 9 tests passed`，前端构建通过
+- 服务器已完成可用部署，健康检查通过，真实模型从服务器本机可调用
+- 生产消息链路已从 500/504/永久排队修复到可返回中文回复
+
+**Notes**
+- 当前生产部署仍是 root 直登管理，后续若继续交付，建议切换为专用系统用户并收紧文件权限
+- `scripts/deploy-zzetz-cn.sh` 假设证书已由 `certbot` 写入 `/etc/letsencrypt/live/zzetz.cn/`
+- 为清理本次测试残留，服务器执行过一次 `sessions.status in ('active','queued') -> 'in_progress'` 的数据库修复
 
 ### [2026-04-08] Task 9: 最终文档、回归验证与人工验收
 **Summary**

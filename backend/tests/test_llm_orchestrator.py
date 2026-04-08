@@ -72,11 +72,12 @@ def test_llm_client_sends_http_request(monkeypatch):
         def json(self):
             return {"output": [{"content": [{"text": "你好，我来帮你梳理需求。"}]}]}
 
-    def fake_post(url, headers, json, timeout):
+    def fake_post(url, headers, json, timeout, trust_env):
         captured["url"] = url
         captured["headers"] = headers
         captured["json"] = json
         captured["timeout"] = timeout
+        captured["trust_env"] = trust_env
         return FakeResponse()
 
     monkeypatch.setattr("app.services.llm_client.httpx.post", fake_post)
@@ -90,7 +91,31 @@ def test_llm_client_sends_http_request(monkeypatch):
     assert captured["json"]["instructions"] == "请使用中文"
     assert captured["json"]["input"] == "我是插画师"
     assert captured["timeout"] == 30.0
+    assert captured["trust_env"] is False
     assert result.text == "你好，我来帮你梳理需求。"
+
+
+def test_llm_client_ignores_host_proxy_environment(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"output": [{"content": [{"text": "ok"}]}]}
+
+    def fake_post(url, headers, json, timeout, trust_env):
+        captured["trust_env"] = trust_env
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.llm_client.httpx.post", fake_post)
+    client = LLMClient(api_key="test-key", model="gpt-4.1-mini")
+
+    result = client.generate(instructions="请使用中文", input_text="我是插画师")
+
+    assert captured["trust_env"] is False
+    assert result.text == "ok"
 
 
 def test_llm_client_reads_settings_from_env(monkeypatch):
@@ -108,7 +133,7 @@ def test_llm_client_reads_settings_from_env(monkeypatch):
 
 
 def test_llm_client_raises_chinese_runtime_error_on_timeout(monkeypatch):
-    def fake_post(url, headers, json, timeout):
+    def fake_post(url, headers, json, timeout, trust_env):
         raise httpx.TimeoutException("boom")
 
     monkeypatch.setattr("app.services.llm_client.httpx.post", fake_post)
@@ -132,7 +157,7 @@ def test_llm_client_retries_once_after_timeout(monkeypatch):
         def json(self):
             return {"output": [{"content": [{"text": "第二次成功"}]}]}
 
-    def fake_post(url, headers, json, timeout):
+    def fake_post(url, headers, json, timeout, trust_env):
         attempts["count"] += 1
         if attempts["count"] == 1:
             raise httpx.TimeoutException("boom")
@@ -157,7 +182,7 @@ def test_llm_client_raises_chinese_runtime_error_on_http_error(monkeypatch):
         def json(self):
             return {}
 
-    def fake_post(url, headers, json, timeout):
+    def fake_post(url, headers, json, timeout, trust_env):
         return FakeResponse()
 
     monkeypatch.setattr("app.services.llm_client.httpx.post", fake_post)

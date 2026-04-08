@@ -57,6 +57,7 @@ class LLMClient:
                         "input": input_text,
                     },
                     timeout=request_timeout,
+                    trust_env=False,
                 )
                 response.raise_for_status()
                 payload = response.json()

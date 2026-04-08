@@ -1,6 +1,8 @@
 from io import BytesIO
 
 from app import create_app
+from app.db import SessionLocal
+from app.models import SessionRecord
 
 
 class FakeLLMClient:
@@ -97,7 +99,7 @@ def test_message_route_returns_502_when_summary_extraction_fails(tmp_path, monke
     assert response.get_json() == {"message": "暂时无法继续整理需求，请稍后重试。"}
 
 
-def test_sixth_active_session_is_queued(tmp_path, monkeypatch):
+def test_sequential_messages_do_not_exhaust_active_slots(tmp_path, monkeypatch):
     db_path = tmp_path / "queue.db"
     app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
     client = app.test_client()
@@ -110,12 +112,35 @@ def test_sixth_active_session_is_queued(tmp_path, monkeypatch):
         lambda: FakeLLMClient(),
     )
 
-    for token in tokens[:5]:
+    for token in tokens:
         response = client.post(
             f"/api/sessions/{token}/messages",
             json={"content": "我想做个人网站"},
         )
         assert response.status_code == 201
+
+    session_payload = client.get(f"/api/sessions/{tokens[0]}").get_json()
+
+    assert session_payload["status"] == "in_progress"
+
+
+def test_sixth_processing_session_is_queued(tmp_path, monkeypatch):
+    db_path = tmp_path / "processing-queue.db"
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
+    client = app.test_client()
+
+    tokens = [client.post("/api/sessions").get_json()["token"] for _ in range(6)]
+
+    db = SessionLocal()
+    try:
+        for token in tokens[:5]:
+            session = db.get(SessionRecord, token)
+            session.status = "active"
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeLLMClient())
 
     response = client.post(
         f"/api/sessions/{tokens[5]}/messages",

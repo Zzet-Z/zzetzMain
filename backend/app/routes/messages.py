@@ -86,6 +86,7 @@ def create_message(token: str):
                 ],
             )
         except RuntimeError as exc:
+            session.status = "failed"
             session.last_error = str(exc)
             db.commit()
             return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
@@ -112,6 +113,7 @@ def create_message(token: str):
             recent_messages=[{"role": "user", "content": content}],
         )
     except RuntimeError as exc:
+        session.status = "failed"
         session.last_error = str(exc)
         db.commit()
         return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
@@ -139,6 +141,7 @@ def create_message(token: str):
                 recent_messages=[{"role": "user", "content": content}],
             )
         except RuntimeError as exc:
+            session.status = "failed"
             session.last_error = str(exc)
             db.commit()
             return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
@@ -154,6 +157,7 @@ def create_message(token: str):
         summary_payload=merged_summary,
         user_action=user_action,
     )
+    session.status = "in_progress"
 
     db.commit()
     return jsonify(

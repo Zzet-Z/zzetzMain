@@ -13,6 +13,7 @@ const STATUS_LABELS = {
   draft: "待开始",
   queued: "排队中",
   active: "进行中",
+  in_progress: "进行中",
   generating_document: "正在生成文档",
   completed: "已完成",
   failed: "处理失败",

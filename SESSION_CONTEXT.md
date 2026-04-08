@@ -69,9 +69,11 @@ Milestone 1 到 9 已写完，主要覆盖：
 - Task 9：最终验证与文档
 
 ## 下一次会话最应该做什么
-当前计划内任务已完成。若下一次会话继续推进，先确认是：
-1. 做 MVP 之后的体验增强
-2. 做部署/交付
+当前最优先的是把这次生产部署修复提交并推送，然后在服务器上用 `scripts/deploy-zzetz-cn.sh` 重放一次部署，确认脚本本身可用。
+
+如果下一次会话继续推进，优先顺序改为：
+1. 固化并复跑生产部署脚本
+2. 做 MVP 之后的体验增强
 3. 做新一轮产品能力规划
 
 无论做哪一种，仍先按 `AGENTS.md` 的阅读顺序恢复上下文，再决定是否需要新增计划。
@@ -83,6 +85,7 @@ Milestone 1 到 9 已写完，主要覆盖：
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `TBD` 本轮尚未提交：生产消息链路修复、`trust_env=False`、部署脚本 `scripts/deploy-zzetz-cn.sh`
 - `7f2e238` `feat: wire mobile-first intake flow`
 - `5ae8615` `feat: build mobile-first homepage`
 - `05f3376` `feat: add safe image uploads`
@@ -99,7 +102,9 @@ Milestone 1 到 9 已写完，主要覆盖：
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
-- 真实 LLM 主链路在百炼兼容层上依然偏慢，单次阶段推进可能需要几十秒到一百秒级
+- 真实 LLM 主链路在百炼兼容层上依然偏慢；生产上一条消息可能包含“阶段回复 + 摘要提取”两次模型调用，因此部署时必须同步放宽 `gunicorn` 与 `nginx` 的超时窗口
+- `SessionRecord.status` 现在新增了“处理中结束后的在途状态”语义：`active` 只表示占用并发槽位的处理中请求，完成后会落到 `in_progress`，失败时落到 `failed`
+- 远端宿主机存在代理环境变量；`LLMClient` 已通过 `trust_env=False` 显式忽略宿主机代理，后续不要回退这个行为
 - 已完成会话重新打开后，附件列表仍不会从后端回放到附件面板；持久化附件以文档 `参考附件` 段落为准
 - 新会话不要直接开始改代码，先按 `AGENTS.md` 指定顺序读文档
 - 前端 UI 实现必须优先遵守 `apple/DESIGN.md`，不要临时发明另一套视觉语言
