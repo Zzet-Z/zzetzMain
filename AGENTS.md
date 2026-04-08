@@ -25,6 +25,7 @@
 | 文件 | 用途 | 阅读时机 |
 |------|------|----------|
 | `AGENTS.md`（本文件） | 项目地图、约束、环境 | 每次必读（先） |
+| `SESSION_CONTEXT.md` | 上一次会话压缩上下文、当前阶段与关键决策 | 每次必读（紧随 AGENTS） |
 | `PLANS.md` | 里程碑目标与验收标准 | 每次必读 |
 | `IMPLEMENT.md` | 执行规程（如何做） | 每次必读 |
 | `DOCUMENTATION.md` | 当前状态、决策记录、阻塞项 | 每次必读（后） |
@@ -32,6 +33,7 @@
 | `docs/superpowers/specs/…` | 产品行为规格 | 有疑问时阅读 |
 
 不要在未完成上面阅读顺序前直接修改代码。
+`SESSION_CONTEXT.md` 只用于快速恢复上下文，不能替代 `PLANS.md`、`IMPLEMENT.md` 和当前 Task 计划。
 
 ---
 
