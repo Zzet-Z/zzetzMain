@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 5 — 并发队列与文档生成
-- Current task: Task 5 — 实现 5 会话并发控制、文档生成与轮询
-- Status: Task 4 completed, Task 5 ready to start
+- Current milestone: Milestone 6 — 上传与安全限制
+- Current task: Task 6 — 实现安全图片上传与附件记录
+- Status: Task 5 completed, Task 6 ready to start
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,6 @@
 - （无）
 
 ### Not started
-- Milestone 5: 并发队列与文档生成（Task 5）
 - Milestone 6: 上传与安全限制（Task 6）
 - Milestone 7: 首页移动端优先 UI（Task 7）
 - Milestone 8: 需求梳理页 UI 与前后端接线（Task 8）
@@ -33,6 +32,48 @@
 ---
 
 ## Task log
+
+### [2026-04-08] Task 5: 实现并发队列、轮询状态与文档生成
+**Summary**
+- 新建 `queue_manager.py`，实现最多 5 个活跃会话的槽位保留与排队位置计算
+- 新建 `document_renderer.py` 与 `GET /api/sessions/<token>/document`
+- 更新消息路由，加入排队响应、轮询间隔字段与同步文档生成落库
+- 当前文档生成使用同步 LLM 渲染，但对前端仍返回 `generating_document` 状态以保持轮询协议一致
+
+**Files changed**
+- `backend/app/__init__.py`
+- `backend/app/routes/messages.py`
+- `backend/app/routes/documents.py`
+- `backend/app/services/queue_manager.py`
+- `backend/app/services/document_renderer.py`
+- `backend/tests/test_queue_and_generation.py`
+
+**Validation run**
+- 红灯确认：
+  - `cd backend && pytest tests/test_queue_and_generation.py::test_sixth_active_session_is_queued -q`
+- 绿灯验证：
+  - `cd backend && pytest tests/test_queue_and_generation.py -q`
+  - `cd backend && pytest -q`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 初始因 `app.services.document_renderer` 缺失而失败
+- 绿灯阶段全部通过：
+  - 第六个活跃会话进入排队
+  - 文档接口返回中文摘要和 PRD
+  - 后端当前全量测试通过（23 passed）
+
+**Notes**
+- plan 的 Task 5 示例测试与步骤在“何时触发文档生成”上有轻微冲突；本次按步骤实现为 `generation_requested=True` 时生成文档，并在测试中显式传入该字段
+- 当前版本为了保持实现收敛，没有提前引入附件查询；文档渲染暂传空附件列表，等 Task 6 上传能力落地后再接入
+- 会话在生成完成后立即标记为 `completed` 释放槽位，但响应仍返回 `generating_document` + `poll_after_ms=5000`，保证前端轮询协议不变
+
+**Known issues**
+- `SESSION_CONTEXT.md` 的“最近重要提交”会在下一次任务收尾时补录本次 Task 5 提交 hash
+
+**Next suggested step**
+- 执行 Milestone 6 / Task 6：上传、安全限制与附件记录
+- 先补 `backend/tests/test_uploads_api.py` 红灯测试，再实现存储与上传路由
 
 ### [2026-04-08] Task 4: 实现阶段状态机、真实对话引导与摘要提取策略
 **Summary**
@@ -291,6 +332,7 @@
 ## Verification history
 | Date | Scope | Commands | Result | Notes |
 |------|-------|----------|--------|-------|
+| 2026-04-08 | Task 5 red/green | `cd backend && pytest tests/test_queue_and_generation.py::test_sixth_active_session_is_queued -q`; `cd backend && pytest tests/test_queue_and_generation.py -q`; `cd backend && pytest -q` | Passed | 先确认队列/文档渲染模块缺失，再补齐排队、文档接口和轮询状态 |
 | 2026-04-08 | Task 4 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_skip_template_moves_to_style -q`; `cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q`; `cd backend && pytest -q` | Passed | 先确认状态机缺失，再补齐状态机、摘要策略与消息路由 |
 | 2026-04-08 | Task 3 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_build_chat_request_uses_chinese_and_stage_prompt -q`; `cd backend && pytest tests/test_llm_orchestrator.py -q`; `cd backend && pytest -q` | Passed | 先确认 LLM 模块缺失，再补齐客户端、编排器和 prompts |
 | 2026-04-08 | Task 2 red/green | `cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_default_state -q`; `cd backend && pytest tests/test_sessions_api.py -q`; `cd backend && pytest -q` | Passed | 先确认 `/api/sessions` 缺失，再补齐 create/get/patch 与 CORS |
@@ -302,8 +344,8 @@
 ## Handoff notes
 给下一个执行者的说明：
 
-- 当前最应该继续的任务：**Milestone 5 / Task 5 — 实现 5 会话并发控制、文档生成与轮询**
-- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 5 部分
+- 当前最应该继续的任务：**Milestone 6 / Task 6 — 实现安全图片上传与附件记录**
+- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 6 部分
 - 不要动的区域：`docs/superpowers/` 下的 spec 和 plan 文件
-- 当前最大风险：Task 5 会开始处理并发上限、排队位置与文档状态流转，容易把上传或前端轮询逻辑提前带进来
-- 推荐先跑的验证命令：Task 5 从 `cd backend && pytest tests/test_queue_and_generation.py -q` 开始
+- 当前最大风险：Task 6 会首次引入文件系统写入与文件类型校验，必须严守白名单、大小限制和 token 命名空间
+- 推荐先跑的验证命令：Task 6 从 `cd backend && pytest tests/test_uploads_api.py -q` 开始

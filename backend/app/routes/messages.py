@@ -1,10 +1,12 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
 from ..db import SessionLocal
-from ..models import MessageRecord, SessionRecord, SummarySnapshot
+from ..models import DocumentRecord, MessageRecord, SessionRecord, SummarySnapshot
+from ..services.document_renderer import render_document_bundle
 from ..services.intake_state_machine import next_stage_for_session
 from ..services.llm_client import LLMClient
 from ..services.llm_orchestrator import extract_summary_update, generate_stage_reply
+from ..services.queue_manager import reserve_slot
 from ..services.summary_builder import merge_summary, should_refresh_summary
 
 
@@ -22,6 +24,21 @@ def create_message(token: str):
     payload = request.get_json(silent=True) or {}
     content = payload["content"]
     user_action = payload.get("action", "answered")
+    generation_requested = payload.get("generation_requested", False)
+
+    status, queue_position = reserve_slot(
+        token,
+        current_app.config["MAX_ACTIVE_SESSIONS"],
+    )
+    if status == "queued":
+        return jsonify(
+            {
+                "session_status": "queued",
+                "queue_position": queue_position,
+                "message": "当前正在为其他用户整理网站需求，你已进入等待队列。",
+                "poll_after_ms": 3000,
+            }
+        ), 202
 
     db.add(
         MessageRecord(
@@ -63,8 +80,6 @@ def create_message(token: str):
     )
 
     stage_completed = payload.get("stage_completed", False)
-    generation_requested = payload.get("generation_requested", False)
-
     if should_refresh_summary(
         current_stage=session.current_stage,
         stage_completed=stage_completed,
@@ -89,10 +104,38 @@ def create_message(token: str):
         user_action=user_action,
     )
 
+    if generation_requested:
+        document = (
+            db.query(DocumentRecord)
+            .filter(DocumentRecord.session_token == token)
+            .order_by(DocumentRecord.id.desc())
+            .first()
+        )
+        session.status = "generating_document"
+        summary_text, prd_markdown = render_document_bundle(
+            summary_payload=merged_summary,
+            attachments=[],
+        )
+        document.version += 1
+        document.status = "ready"
+        document.summary_text = summary_text
+        document.prd_markdown = prd_markdown
+        session.status = "completed"
+        db.commit()
+        return jsonify(
+            {
+                "session_status": "generating_document",
+                "message": "正在生成 PRD",
+                "poll_after_ms": 5000,
+            }
+        ), 202
+
     db.commit()
     return jsonify(
         {
             "assistant_reply": assistant_reply,
             "current_stage": session.current_stage,
+            "session_status": session.status,
+            "poll_after_ms": 3000,
         }
     ), 201
