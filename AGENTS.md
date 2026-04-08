@@ -115,8 +115,8 @@ cd backend && python run.py
 
 # 环境变量（后端 LLM 调用必需）
 export OPENAI_API_KEY="your-key"
-export OPENAI_MODEL="gpt-4.1-mini"
-export OPENAI_BASE_URL="https://api.openai.com/v1"
+export OPENAI_MODEL="qwen3.5-plus"
+export OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
 ```
 
 ### Quality gates（机械化验证，不可跳过）

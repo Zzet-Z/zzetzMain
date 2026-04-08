@@ -47,7 +47,7 @@
 - 中文界面不要机械照搬英文负字距与紧缩参数，优先保证可读性
 
 ## 计划里的关键技术决定
-- LLM：使用 OpenAI Responses API，通过 `httpx` 同步调用
+- LLM：使用阿里云百炼 Qwen（`qwen3.5-plus`），兼容 OpenAI Responses API，通过 `httpx` 同步调用；base_url 为 `https://dashscope.aliyuncs.com/compatible-mode/v1`
 - 轮询：对话阶段 3 秒，文档生成阶段 5 秒
 - 会话：`session token` 标识，无登录
 - 阶段：`template -> style -> positioning -> content -> features -> generate`
