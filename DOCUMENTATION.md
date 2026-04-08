@@ -1,5 +1,8 @@
 # DOCUMENTATION.md
 
+> **系统记录原则**：本文件是项目执行状态的唯一权威来源。
+> agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
+
 ## Current status
 - Current milestone: Milestone 1 — 项目基线稳定
 - Current task: Task 1 — 搭建前后端脚手架与最小运行面

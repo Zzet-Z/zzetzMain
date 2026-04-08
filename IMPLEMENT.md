@@ -6,21 +6,40 @@
 ---
 
 ## Step 0: Read context
-开始任何实现前，先阅读：
-- `AGENTS.md`
-- `PLANS.md`
-- `IMPLEMENT.md`
-- `DOCUMENTATION.md`
+开始任何实现前，先阅读（按 `AGENTS.md` 中 Document map 的顺序）：
+- `AGENTS.md` → 约束与地图
+- `PLANS.md` → 当前 Task 的目标与验收标准
+- `IMPLEMENT.md` → 本文件（执行规程）
+- `DOCUMENTATION.md` → 当前状态、阻塞项、上一步的决策
 
-然后阅读当前 Task 在 Plan 文档中的完整描述：
-- `docs/superpowers/plans/2026-04-08-personal-website-mvp.md`
-
-再阅读产品规格（确认行为预期）：
-- `docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
+然后深入阅读：
+- `docs/superpowers/plans/2026-04-08-personal-website-mvp.md` — 当前 Task 完整描述
+- `docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md` — 产品规格（有行为疑问时读）
 
 最后阅读当前任务直接相关的代码、测试、配置。
 
 不要在未理解上下文前直接修改代码。
+
+---
+
+## Step 0.5: Task isolation（worktree）
+如果当前任务满足以下任一条件，**在独立 worktree 中执行**：
+- 多个 agent 并行处理不同 Task
+- 当前 Task 风险较高（涉及数据库 schema、路由层改动、大量文件变更）
+- 希望在不影响主分支的前提下验证后再合并
+
+```bash
+# 创建 worktree（在主仓库根目录执行）
+git worktree add ../zzetz-task-N -b task/N-short-name
+
+# 在 worktree 中执行任务，完成后合并
+git worktree remove ../zzetz-task-N
+```
+
+**每个 worktree 规则**：
+- 只关注本任务目标，不假设其他 worktree 的改动已存在
+- 可在 worktree 根目录放 `TASK.md` 明确当前边界
+- 合并前必须再次运行全量验证
 
 ---
 
@@ -55,11 +74,15 @@
 ## Step 3: Implement in small increments
 实现时遵循：
 - 严格按 Plan 的 TDD 流程：先写测试 → 确认失败 → 写实现 → 确认通过
-- 每一轮修改尽量保持仓库仍可验证
-- 不做无关清理
-- 不做无关命名统一
-- 不做无关格式化大改
+- 每一轮修改后立即运行相关测试，不积累到最后再验
+- 不做无关清理、命名统一、格式化大改
 - 每个 Task 结束时执行 Plan 指定的 git commit
+
+**反馈闭环原则**：错误要在发生处捕获，不要等到任务末尾才发现。
+- 改了类型 → 立即运行 `tsc`（或 `npm run build`）
+- 改了 API → 立即运行对应测试文件
+- 改了 prompt → 立即运行 `test_llm_orchestrator.py`
+- 不要等到 Step 4 才统一验证
 
 ---
 
@@ -72,6 +95,14 @@
 - 若命令失败，必须先处理，或明确记录为阻塞
 - 若测试需要环境变量（如 `OPENAI_API_KEY`），使用 monkeypatch 或 mock，不依赖真实外部 API
 
+### Validation scope
+| 改动类型 | 必须执行的验证 |
+|----------|---------------|
+| 后端 API / 业务逻辑 | `pytest -q` + 相关测试文件 |
+| 前端 UI / 交互 | `npm test` + `npm run build` |
+| 共享 schema / 类型 | 前后端相关测试 + 构建验证 |
+| LLM prompt | `test_llm_orchestrator.py` + 确认 prompt 路径正确 |
+
 ---
 
 ## Step 5: Update DOCUMENTATION.md
@@ -80,10 +111,11 @@
 - 本次 Task 名称与编号
 - 修改摘要
 - 关键设计决策（如果偏离了 Plan，说明原因）
-- 跑了哪些验证
-- 验证结果
+- 跑了哪些验证及结果
 - 已知问题
 - 下一步建议
+
+`DOCUMENTATION.md` 是项目的系统记录。agent 看不到的信息对它不存在——模糊、过时、不在仓库里的文档会直接伤害后续执行质量。
 
 ---
 
@@ -94,26 +126,23 @@
 - 是否超出 Task 的 Files 清单范围？
 - 是否改了不该改的文件？
 
-### Quality check
-- 是否按 Plan 补了所有要求的测试？
-- 是否更新了 DOCUMENTATION.md？
-- 是否有明显回归风险？
-
-### Consistency check
-- 代码中的状态名是否与 Spec 一致（draft/queued/active/generating_document/completed/failed）？
-- 路由是否统一在 `/api/sessions/...` 下？
-- 中文文案是否与 Spec 一致？
-
-### Stability check
+### Quality gates（架构约束的机械执行层）
 - 前端 `npm run build` 是否通过？
 - 后端 `pytest -q` 是否通过？
+
+这两条 CI 检查不是可选的——它们是架构边界的唯一强制执行机制。它们发现的问题，比事后 code review 发现的更便宜修复。
+
+### Consistency check
+- 状态名是否与 Spec 一致（draft/queued/active/generating_document/completed/failed）？
+- 路由是否统一在 `/api/sessions/...` 下？
+- 中文文案是否与 Spec 一致？
 
 如果答案存在问题，不应直接结束任务。
 
 ---
 
 ## Output style for task completion
-任务完成时，应给出简洁总结，包含：
+任务完成时，给出简洁总结：
 
 1. 完成了什么（Task 编号与名称）
 2. 改了哪些关键文件
@@ -162,13 +191,3 @@
 5. 记录阻塞并提供下一步建议（如果是大问题）
 
 不要把这类情况伪装成"任务已完全完成"。
-
----
-
-## Multi-agent / multi-worktree note
-如果当前任务在独立 worktree 或独立线程中执行：
-- 只关注本任务目标
-- 不假设其他线程的改动已存在
-- 不修改其他 worktree 负责的范围
-- 合并前再次核对验证
-- 每个 worktree 可放一个临时 `TASK.md` 明确当前任务边界

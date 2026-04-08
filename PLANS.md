@@ -1,5 +1,9 @@
 # PLANS.md
 
+> **Spec-first 原则**：本文件与 `docs/superpowers/` 下的规格文档是项目的权威记录。
+> 只有写进仓库的内容对 agent 才存在——口头约定、外部文档、个人记忆对执行无效。
+> 架构约束通过每个 Milestone 的 Validation 命令机械执行，不依赖人工 code review。
+
 ## Project objective
 构建一个面向简体中文非技术用户的个人网站需求梳理工具 MVP。首页建立审美与产品认知，需求梳理页通过真实 LLM 对话引导用户输出中文摘要与中文 PRD。
 
@@ -271,6 +275,13 @@ cd frontend && npm run build
 - 每次只推进一个 Milestone 或其子 Task
 - 每完成一个 Milestone，必须更新 `DOCUMENTATION.md`
 - 若验证失败，不进入下一 Milestone
+
+### Mechanized enforcement
+每个 Milestone 的 Validation 命令是架构约束的唯一执行机制：
+- 测试失败 = 功能约束违规
+- 构建失败 = 类型或接口约束违规
+- 这些检查的反馈立即可用，不需要等待 code review
+- 错误信息本身就是修复指引，优先从错误信息定位问题
 
 ---
 
