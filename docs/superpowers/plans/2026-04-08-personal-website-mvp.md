@@ -493,12 +493,23 @@ def update_session(token: str):
         return jsonify({"message": "这次整理链接可能已失效，请重新开始。"}), 404
 
     payload = request.get_json()
+    allowed_stage_transitions = {
+        "template": {"style"},
+        "style": {"positioning"},
+        "positioning": {"content"},
+        "content": {"features"},
+        "features": {"generate"},
+        "generate": set(),
+    }
     if "selected_template" in payload:
         session.selected_template = payload["selected_template"]
     if "selected_style" in payload:
         session.selected_style = payload["selected_style"]
     if "current_stage" in payload:
-        session.current_stage = payload["current_stage"]
+        requested_stage = payload["current_stage"]
+        if requested_stage != session.current_stage and requested_stage not in allowed_stage_transitions.get(session.current_stage, set()):
+            return jsonify({"message": "当前阶段不能直接跳转到目标阶段。"}), 400
+        session.current_stage = requested_stage
     db.commit()
     return jsonify(
         {
@@ -1897,6 +1908,7 @@ export function SessionPage({ initialState }: { initialState?: { status: string;
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<Array<{ fileName: string; caption: string }>>([]);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1963,13 +1975,20 @@ export function SessionPage({ initialState }: { initialState?: { status: string;
   }
 
   async function handleSend() {
-    if (!draft.trim()) return;
+    if (!draft.trim() || isSending) return;
     const userContent = draft;
     setMessages((current) => [...current, { role: "user", content: userContent }]);
     setDraft("");
-    const payload = await sendMessage(token, userContent);
-    setMessages((current) => [...current, { role: "assistant", content: payload.assistant_reply }]);
-    setSession((current: any) => ({ ...current, current_stage: payload.current_stage }));
+    setIsSending(true);
+    try {
+      const payload = await sendMessage(token, userContent);
+      setMessages((current) => [...current, { role: "assistant", content: payload.assistant_reply }]);
+      setSession((current: any) => ({ ...current, current_stage: payload.current_stage }));
+    } catch (_error) {
+      setMessages((current) => [...current, { role: "assistant", content: "暂时无法继续整理需求，请稍后重试。" }]);
+    } finally {
+      setIsSending(false);
+    }
   }
 
   async function handleUpload(file: File) {
@@ -1985,7 +2004,13 @@ export function SessionPage({ initialState }: { initialState?: { status: string;
           <div className="space-y-4">
             <TemplateSelector onSelect={handleTemplateSelect} onSkip={() => handleTemplateSelect("跳过")} />
             <StyleSelector onSelect={handleStyleSelect} onSkip={() => handleStyleSelect("跳过")} />
-            <ChatPanel messages={messages} draft={draft} onDraftChange={setDraft} onSend={handleSend} />
+            <ChatPanel
+              messages={messages}
+              draft={draft}
+              onDraftChange={setDraft}
+              onSend={handleSend}
+              isSending={isSending}
+            />
             <AttachmentPanel attachments={attachments} onUpload={handleUpload} />
           </div>
           <SummaryPanel session={session} summaryPayload={session.summary?.payload} documentState={documentState} />
@@ -2081,11 +2106,13 @@ export function ChatPanel({
   draft,
   onDraftChange,
   onSend,
+  isSending,
 }: {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   draft: string;
   onDraftChange: (value: string) => void;
   onSend: () => void;
+  isSending: boolean;
 }) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
@@ -2104,8 +2131,12 @@ export function ChatPanel({
         onChange={(event) => onDraftChange(event.target.value)}
         placeholder="用中文描述你的网站目标、内容和风格偏好"
       />
-      <button className="mt-3 rounded-full bg-white px-4 py-2 text-neutral-950" onClick={onSend}>
-        发送
+      <button
+        className="mt-3 rounded-full bg-white px-4 py-2 text-neutral-950"
+        disabled={isSending}
+        onClick={onSend}
+      >
+        {isSending ? "发送中..." : "发送"}
       </button>
     </section>
   );
