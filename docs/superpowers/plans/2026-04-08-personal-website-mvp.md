@@ -4,7 +4,7 @@
 
 **Goal:** 构建一个面向简体中文用户、移动端优先的 MVP：首页负责建立审美与产品认知，需求梳理页通过真实 LLM 对话引导用户输出中文摘要与中文 PRD。
 
-**Architecture:** 采用单仓库结构，前端使用 React + Tailwind CSS，后端使用 Flask + SQLite。后端负责 `session token`、会话状态、5 会话并发队列、图片上传、结构化摘要、真实 LLM 调用、最终 PRD 渲染；前端负责 mobile-first 的首页与需求梳理体验，并通过短轮询/长轮询驱动状态更新。
+**Architecture:** 采用单仓库结构，前端使用 React + Tailwind CSS，后端使用 Flask + SQLite。后端负责 `session token`、会话状态、5 会话并发队列、图片上传、结构化摘要、真实 LLM 调用、最终 PRD 渲染；前端负责 mobile-first 的首页与需求梳理体验，并通过短轮询/长轮询驱动状态更新。LLM 采用真实 HTTP API 调用，默认按 OpenAI Responses API 设计，并通过环境变量配置密钥、模型和超时。
 
 **Tech Stack:** React, TypeScript, Vite, Tailwind CSS, Vitest, Flask, SQLAlchemy, SQLite, pytest
 
@@ -298,6 +298,7 @@ dependencies = [
   "Flask>=3.1.0",
   "Flask-Cors>=5.0.0",
   "SQLAlchemy>=2.0.40",
+  "httpx>=0.28.1",
   "pytest>=8.3.5",
 ]
 
@@ -394,7 +395,7 @@ def init_db(database_url: str):
 
 ```python
 # backend/app/models.py
-from datetime import datetime
+from datetime import UTC, datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
@@ -409,10 +410,10 @@ class SessionRecord(Base):
     current_stage: Mapped[str] = mapped_column(String(32), default="template")
     selected_template: Mapped[str | None] = mapped_column(String(64), nullable=True)
     selected_style: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    queue_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class MessageRecord(Base):
@@ -423,7 +424,7 @@ class MessageRecord(Base):
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
     stage: Mapped[str] = mapped_column(String(32))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class SummarySnapshot(Base):
@@ -432,7 +433,7 @@ class SummarySnapshot(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_token: Mapped[str] = mapped_column(ForeignKey("sessions.token"))
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class DocumentRecord(Base):
@@ -441,9 +442,10 @@ class DocumentRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_token: Mapped[str] = mapped_column(ForeignKey("sessions.token"))
     status: Mapped[str] = mapped_column(String(32), default="pending")
+    version: Mapped[int] = mapped_column(Integer, default=1)
     summary_text: Mapped[str] = mapped_column(Text, default="")
     prd_markdown: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 ```
 
 - [ ] **Step 4: 实现 session 路由**
@@ -487,6 +489,7 @@ def create_session():
 from flask import Flask
 from flask_cors import CORS
 from .db import init_db
+from .db import SessionLocal
 
 
 def create_app(config_overrides=None):
@@ -511,6 +514,11 @@ def create_app(config_overrides=None):
 
     app.register_blueprint(health_bp, url_prefix="/api")
     app.register_blueprint(sessions_bp, url_prefix="/api")
+
+    @app.teardown_appcontext
+    def cleanup_session(_exception=None):
+        SessionLocal.remove()
+
     return app
 ```
 
@@ -537,6 +545,8 @@ def test_get_session_returns_stage_and_summary(tmp_path):
 def get_session(token: str):
     db = SessionLocal()
     session = db.get(SessionRecord, token)
+    if session is None:
+        return jsonify({"message": "这次整理链接可能已失效，请重新开始。"}), 404
     latest_summary = (
         db.query(SummarySnapshot)
         .filter(SummarySnapshot.session_token == token)
@@ -623,11 +633,13 @@ Expected:
 
 - 失败，因为 LLM 编排器还不存在
 
-- [ ] **Step 3: 写最小 LLM 客户端接口**
+- [ ] **Step 3: 写真实 LLM 客户端接口**
 
 ```python
 # backend/app/services/llm_client.py
 from dataclasses import dataclass
+import httpx
+import os
 
 
 @dataclass
@@ -636,11 +648,44 @@ class LLMResponse:
 
 
 class LLMClient:
-    def generate(self, *, system_prompt: str, user_prompt: str) -> LLMResponse:
-        raise NotImplementedError
+    def __init__(self, *, api_key: str, model: str, base_url: str = "https://api.openai.com/v1"):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+
+    @classmethod
+    def from_env(cls):
+        return cls(
+            api_key=os.environ["OPENAI_API_KEY"],
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+            base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+        )
+
+    def generate(self, *, instructions: str, input_text: str, timeout: float = 30.0) -> LLMResponse:
+        try:
+            response = httpx.post(
+                f"{self.base_url}/responses",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "instructions": instructions,
+                    "input": input_text,
+                },
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return LLMResponse(text=payload["output"][0]["content"][0]["text"])
+        except httpx.TimeoutException as exc:
+            raise RuntimeError("LLM 调用超时") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError("LLM 调用失败") from exc
 ```
 
-- [ ] **Step 4: 写阶段化编排器**
+- [ ] **Step 4: 写阶段化编排器与调用封装**
 
 ```python
 # backend/app/services/llm_orchestrator.py
@@ -663,6 +708,19 @@ def build_chat_request(*, stage: str, summary_payload: dict, recent_messages: li
         "system_prompt": system + "\n\n" + stage_prompt,
         "context_text": f"摘要：{summary_payload}\n最近对话：{history}",
     }
+
+
+def generate_stage_reply(client, *, stage: str, summary_payload: dict, recent_messages: list[dict]) -> str:
+    request = build_chat_request(
+        stage=stage,
+        summary_payload=summary_payload,
+        recent_messages=recent_messages,
+    )
+    response = client.generate(
+        instructions=request["system_prompt"],
+        input_text=request["context_text"],
+    )
+    return response.text
 ```
 
 - [ ] **Step 5: 写首版中文 prompt 文件**
@@ -719,7 +777,38 @@ def build_chat_request(*, stage: str, summary_payload: dict, recent_messages: li
 PRD 至少包含：项目目标、目标受众、网站类型、视觉方向、页面结构、内容模块、功能需求、排除项、附件说明。
 ```
 
-- [ ] **Step 6: 重新运行 LLM 编排测试**
+- [ ] **Step 6: 再补一条真实 HTTP 调用形状测试**
+
+```python
+from app.services.llm_client import LLMClient
+
+
+def test_llm_client_sends_http_request(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"output": [{"content": [{"text": "你好，我来帮你梳理需求。"}]}]}
+
+    def fake_post(url, headers, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.llm_client.httpx.post", fake_post)
+    client = LLMClient(api_key="test-key", model="gpt-4.1-mini")
+
+    result = client.generate(instructions="请使用中文", input_text="我是插画师")
+
+    assert captured["url"].endswith("/responses")
+    assert captured["json"]["model"] == "gpt-4.1-mini"
+    assert result.text == "你好，我来帮你梳理需求。"
+```
+
+- [ ] **Step 7: 重新运行 LLM 编排测试**
 
 Run:
 
@@ -731,11 +820,11 @@ Expected:
 
 - 测试通过，说明阶段化 prompt 和中文上下文已经接通
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add backend/app backend/tests
-git commit -m "feat: add llm prompt orchestration skeleton"
+git commit -m "feat: add real llm client and prompt orchestration"
 ```
 
 ## Task 4：实现阶段状态机、真实对话引导与摘要提取策略
@@ -805,9 +894,11 @@ def next_stage_for_session(*, current_stage: str, selected_template, selected_st
 ```python
 # backend/app/services/summary_builder.py
 def should_refresh_summary(*, current_stage: str, user_message: str) -> bool:
-    if current_stage in {"template", "style"}:
+    if current_stage in {"template", "style"} and user_message.strip():
         return True
-    if len(user_message.strip()) >= 20:
+    if current_stage in {"positioning", "content", "features"} and any(
+        keyword in user_message for keyword in ["目标", "受众", "作品", "服务", "联系", "预约", "博客", "不要"]
+    ):
         return True
     return False
 
@@ -825,7 +916,8 @@ def merge_summary(existing: dict, extracted: dict) -> dict:
 from flask import Blueprint, jsonify, request
 from ..db import SessionLocal
 from ..models import MessageRecord, SessionRecord, SummarySnapshot
-from ..services.llm_orchestrator import build_chat_request
+from ..services.llm_client import LLMClient
+from ..services.llm_orchestrator import generate_stage_reply
 from ..services.summary_builder import should_refresh_summary
 
 messages_bp = Blueprint("messages", __name__)
@@ -835,6 +927,8 @@ messages_bp = Blueprint("messages", __name__)
 def create_message(token: str):
     db = SessionLocal()
     session = db.get(SessionRecord, token)
+    if session is None:
+        return jsonify({"message": "这次整理链接可能已失效，请重新开始。"}), 404
     content = request.get_json()["content"]
 
     db.add(MessageRecord(session_token=token, role="user", content=content, stage=session.current_stage))
@@ -845,13 +939,18 @@ def create_message(token: str):
         .first()
     )
 
-    prompt_request = build_chat_request(
-        stage=session.current_stage,
-        summary_payload=latest_summary.payload,
-        recent_messages=[{"role": "user", "content": content}],
-    )
-
-    assistant_reply = f"MOCK_REAL_CALL::{prompt_request['stage']}"
+    client = LLMClient.from_env()
+    try:
+        assistant_reply = generate_stage_reply(
+            client,
+            stage=session.current_stage,
+            summary_payload=latest_summary.payload,
+            recent_messages=[{"role": "user", "content": content}],
+        )
+    except RuntimeError as exc:
+        session.last_error = str(exc)
+        db.commit()
+        return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
     db.add(MessageRecord(session_token=token, role="assistant", content=assistant_reply, stage=session.current_stage))
 
     if should_refresh_summary(current_stage=session.current_stage, user_message=content):
@@ -864,17 +963,23 @@ def create_message(token: str):
 - [ ] **Step 6: 补一条测试，确保对话使用当前阶段 prompt**
 
 ```python
-def test_message_route_uses_current_stage_prompt(tmp_path):
+def test_message_route_uses_current_stage_prompt(tmp_path, monkeypatch):
     db_path = tmp_path / "chat.db"
     app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
     client = app.test_client()
     token = client.post("/api/sessions").get_json()["token"]
 
+    class FakeLLMClient:
+        def generate(self, *, instructions: str, input_text: str, timeout: float = 30.0):
+            return type("Resp", (), {"text": "请继续告诉我你的网站主要给谁看。"})()
+
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeLLMClient())
+
     response = client.post(f"/api/sessions/{token}/messages", json={"content": "我是插画师"})
     payload = response.get_json()
 
     assert response.status_code == 201
-    assert "template" in payload["assistant_reply"]
+    assert payload["assistant_reply"]
 ```
 
 - [ ] **Step 7: 运行测试并确保通过**
@@ -945,6 +1050,7 @@ Expected:
 
 ```python
 # backend/app/services/queue_manager.py
+from datetime import UTC, datetime
 from ..db import SessionLocal
 from ..models import SessionRecord
 
@@ -958,14 +1064,20 @@ def reserve_slot(token: str, max_active_sessions: int) -> tuple[str, int | None]
     )
     session = db.get(SessionRecord, token)
     if active_count >= max_active_sessions:
-        queued_count = db.query(SessionRecord).filter(SessionRecord.status == "queued").count()
         session.status = "queued"
-        session.queue_position = queued_count + 1
+        session.queued_at = datetime.now(UTC)
         db.commit()
-        return "queued", session.queue_position
+        queued_sessions = (
+            db.query(SessionRecord)
+            .filter(SessionRecord.status == "queued")
+            .order_by(SessionRecord.queued_at.asc(), SessionRecord.token.asc())
+            .all()
+        )
+        queue_position = next(index for index, item in enumerate(queued_sessions, start=1) if item.token == token)
+        return "queued", queue_position
 
     session.status = "active"
-    session.queue_position = None
+    session.queued_at = None
     db.commit()
     return "active", None
 ```
@@ -1269,7 +1381,7 @@ test("首页展示主 CTA 与产品副标题", () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole("link", { name: /开始梳理我的网站/i })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /开始梳理我的网站/i })).toBeInTheDocument();
   expect(screen.getByText(/不需要会编程，也不需要先写需求/i)).toBeInTheDocument();
 });
 ```
@@ -1293,6 +1405,11 @@ Expected:
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createSession } from "../lib/api";
+import { Hero } from "../components/home/hero";
+import { ProblemSection } from "../components/home/problem";
+import { ProcessSection } from "../components/home/process";
+import { OutputPreviewSection } from "../components/home/output-preview";
+import { FinalCtaSection } from "../components/home/final-cta";
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -1310,22 +1427,73 @@ export function HomePage() {
 
   return (
     <main className="bg-neutral-950 text-white">
-      <section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16">
-        <h1 className="max-w-4xl text-5xl font-semibold leading-tight sm:text-7xl">
-          把你想要的网站，说出来。
-        </h1>
-        <p className="mt-6 max-w-2xl text-lg text-white/70">
-          不需要会编程，也不需要先写需求。通过一次引导式对话，整理出属于你的个人网站方案与标准 PRD。
-        </p>
-        <button
-          className="mt-8 rounded-full bg-white px-6 py-3 text-sm font-medium text-neutral-950"
-          disabled={isStarting}
-          onClick={handleStart}
-        >
-          {isStarting ? "正在开始..." : "开始梳理我的网站"}
-        </button>
-      </section>
+      <Hero isStarting={isStarting} onStart={handleStart} />
+      <ProblemSection />
+      <ProcessSection />
+      <OutputPreviewSection />
+      <FinalCtaSection isStarting={isStarting} onStart={handleStart} />
     </main>
+  );
+}
+```
+
+```tsx
+// frontend/src/components/home/hero.tsx
+export function Hero({ isStarting, onStart }: { isStarting: boolean; onStart: () => void }) {
+  return (
+    <section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16">
+      <h1 className="max-w-4xl text-5xl font-semibold leading-tight sm:text-7xl">
+        把你想要的网站，说出来。
+      </h1>
+      <p className="mt-6 max-w-2xl text-lg text-white/70">
+        不需要会编程，也不需要先写需求。通过一次引导式对话，整理出属于你的个人网站方案与标准 PRD。
+      </p>
+      <button
+        className="mt-8 rounded-full bg-white px-6 py-3 text-sm font-medium text-neutral-950"
+        disabled={isStarting}
+        onClick={onStart}
+      >
+        {isStarting ? "正在开始..." : "开始梳理我的网站"}
+      </button>
+    </section>
+  );
+}
+```
+
+```tsx
+// frontend/src/components/home/problem.tsx
+export function ProblemSection() {
+  return <section className="bg-stone-100 px-6 py-20 text-neutral-900">痛点与产品理念</section>;
+}
+```
+
+```tsx
+// frontend/src/components/home/process.tsx
+export function ProcessSection() {
+  return <section className="px-6 py-20">三步流程</section>;
+}
+```
+
+```tsx
+// frontend/src/components/home/output-preview.tsx
+export function OutputPreviewSection() {
+  return <section className="bg-stone-100 px-6 py-20 text-neutral-900">结果展示</section>;
+}
+```
+
+```tsx
+// frontend/src/components/home/final-cta.tsx
+export function FinalCtaSection({ isStarting, onStart }: { isStarting: boolean; onStart: () => void }) {
+  return (
+    <section className="px-6 py-20">
+      <button
+        className="rounded-full bg-white px-6 py-3 text-sm font-medium text-neutral-950"
+        disabled={isStarting}
+        onClick={onStart}
+      >
+        {isStarting ? "正在开始..." : "开始梳理我的网站"}
+      </button>
+    </section>
   );
 }
 ```
@@ -1439,11 +1607,11 @@ Expected:
 
 - 失败，因为需求页和 API 还未接线
 
-- [ ] **Step 4: 实现 API 客户端**
+- [ ] **Step 4: 实现 API 客户端，并从环境变量读取后端地址**
 
 ```ts
 // frontend/src/lib/api.ts
-const API_BASE = "http://127.0.0.1:5000/api";
+const API_BASE = `${import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000"}/api`;
 
 export async function createSession() {
   const response = await fetch(`${API_BASE}/sessions`, { method: "POST" });
@@ -1483,17 +1651,51 @@ export async function getDocument(token: string) {
 }
 ```
 
-- [ ] **Step 5: 实现需求页布局与轮询参数**
+- [ ] **Step 5: 为前端测试补 fetch mock**
+
+```tsx
+import { vi } from "vitest";
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/sessions")) {
+        return new Response(JSON.stringify({ token: "demo-token" }), { status: 201 });
+      }
+      if (url.includes("/sessions/demo-token/document")) {
+        return new Response(JSON.stringify({ status: "ready", summary_text: "网站类型：个人作品页" }), { status: 200 });
+      }
+      if (url.includes("/sessions/demo-token")) {
+        return new Response(
+          JSON.stringify({ status: "draft", current_stage: "template", summary: { payload: {} } }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    }),
+  );
+});
+```
+
+- [ ] **Step 6: 实现需求页布局与轮询参数**
 
 ```tsx
 // frontend/src/routes/session-page.tsx
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getDocument, getSession } from "../lib/api";
+import { StepHeader } from "../components/intake/step-header";
+import { TemplateSelector } from "../components/intake/template-selector";
+import { StyleSelector } from "../components/intake/style-selector";
+import { ChatPanel } from "../components/intake/chat-panel";
+import { SummaryPanel } from "../components/intake/summary-panel";
+import { AttachmentPanel } from "../components/intake/attachment-panel";
 
-export function SessionPage() {
+export function SessionPage({ initialState }: { initialState?: { status: string; queuePosition?: number } }) {
   const { token = "" } = useParams();
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<any>(initialState ?? null);
   const [documentState, setDocumentState] = useState<any>(null);
 
   useEffect(() => {
@@ -1529,11 +1731,118 @@ export function SessionPage() {
     };
   }, [session, token]);
 
-  return <main>{session ? "模板" : "正在加载..."}</main>;
+  if (session?.status === "queued") {
+    return (
+      <main className="px-4 py-6">
+        <p>当前正在为其他用户整理网站需求，你已进入等待队列。</p>
+        <p>你前面还有 {session.queuePosition} 人。</p>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return <main className="px-4 py-6">正在加载...</main>;
+  }
+
+  return (
+    <main className="min-h-screen bg-neutral-950 text-white">
+      <div className="mx-auto max-w-6xl px-4 py-4">
+        <StepHeader currentStage={session.current_stage ?? "template"} />
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4">
+            <TemplateSelector />
+            <StyleSelector />
+            <ChatPanel />
+            <AttachmentPanel />
+          </div>
+          <SummaryPanel session={session} documentState={documentState} />
+        </div>
+      </div>
+    </main>
+  );
 }
 ```
 
-- [ ] **Step 6: 补充移动端状态测试**
+- [ ] **Step 7: 给需求页组件最小可用实现**
+
+```tsx
+// frontend/src/components/intake/step-header.tsx
+export function StepHeader({ currentStage }: { currentStage: string }) {
+  return (
+    <header className="sticky top-0 z-10 rounded-3xl border border-white/10 bg-neutral-950/90 px-4 py-3 backdrop-blur">
+      <ol className="flex gap-2 overflow-x-auto text-sm">
+        <li>模板</li>
+        <li>风格</li>
+        <li>定位</li>
+        <li>内容</li>
+        <li>功能</li>
+        <li>生成</li>
+      </ol>
+      <p className="mt-2 text-xs text-white/60">当前阶段：{currentStage}</p>
+    </header>
+  );
+}
+```
+
+```tsx
+// frontend/src/components/intake/template-selector.tsx
+export function TemplateSelector() {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+      <h2>模板</h2>
+      <button className="mt-3 rounded-full border border-white/20 px-4 py-2">跳过</button>
+    </section>
+  );
+}
+```
+
+```tsx
+// frontend/src/components/intake/style-selector.tsx
+export function StyleSelector() {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+      <h2>风格</h2>
+    </section>
+  );
+}
+```
+
+```tsx
+// frontend/src/components/intake/chat-panel.tsx
+export function ChatPanel() {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+      <h2>需求对话</h2>
+    </section>
+  );
+}
+```
+
+```tsx
+// frontend/src/components/intake/attachment-panel.tsx
+export function AttachmentPanel() {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
+      <h2>图片附件</h2>
+    </section>
+  );
+}
+```
+
+```tsx
+// frontend/src/components/intake/summary-panel.tsx
+export function SummaryPanel({ session, documentState }: { session: any; documentState: any }) {
+  return (
+    <aside className="rounded-3xl border border-white/10 bg-white/5 p-4">
+      <h2>摘要</h2>
+      <p>当前状态：{session.status}</p>
+      {documentState?.summary_text ? <pre>{documentState.summary_text}</pre> : null}
+    </aside>
+  );
+}
+```
+
+- [ ] **Step 8: 补充移动端状态测试**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
@@ -1547,7 +1856,7 @@ test("排队用户能看到等待文案", () => {
 });
 ```
 
-- [ ] **Step 7: 运行前端测试并做一次手工联调**
+- [ ] **Step 9: 运行前端测试并做一次手工联调**
 
 Run:
 
@@ -1563,7 +1872,7 @@ Expected:
 - 需求页在手机视口下无横向滚动
 - 排队和生成状态有明确中文反馈
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add frontend
