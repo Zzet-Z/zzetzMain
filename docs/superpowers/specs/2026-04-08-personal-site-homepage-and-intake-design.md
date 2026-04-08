@@ -1,405 +1,439 @@
-# Personal Website Homepage And Intake Design
+# 个人网站首页与需求梳理页设计说明
 
-## 1. Overview
+## 1. 文档目标
 
-This document defines the MVP design for a product that helps non-technical users clarify and structure the requirements for a personal website. The MVP scope in this spec covers two user-facing surfaces:
+本文档定义这个产品第一阶段 MVP 的设计范围。当前阶段只覆盖两类用户界面：
 
-- A marketing homepage that explains the product idea and attracts users through strong visual design
-- A guided intake page that turns a user's vague ideas into a readable summary and a standard PRD
+- 一个负责讲清产品理念并吸引用户开始使用的首页
+- 一个负责通过引导式对话梳理个人网站需求并输出结果的需求梳理页
 
-The downstream step of generating the actual website from the PRD is intentionally out of scope for this phase.
+根据本阶段边界，系统最终产出是：
 
-## 2. Product Positioning
+- 一份用户可直接阅读的简洁摘要
+- 一份可继续交给 AI 或开发者使用的标准 PRD 文档
 
-The product is for ordinary users with no programming background who want their own website but do not know how to define it, describe it, or turn their ideas into something buildable.
+“根据 PRD 直接生成网站”属于下一阶段，不在本次范围内。
 
-The core promise is:
+## 2. 产品定位
 
-> You do not need to know how to code or write requirements. You only need to describe who you are, what you want to show, and what kind of impression you want to create. The system will guide you and produce a professional website brief and PRD.
+这个产品面向没有编程背景的普通用户。他们通常知道自己需要一个网站，但并不清楚：
 
-This product is not positioned as "instant AI website generation" on the homepage. It is positioned as "structured guidance that turns vague intent into a professional website plan."
+- 自己的网站应该做成什么类型
+- 应该包含哪些内容和功能
+- 如何描述视觉风格
+- 如何把模糊想法整理成可交付的需求文档
 
-## 3. Target Users
+产品核心承诺是：
 
-The MVP should remain broad rather than narrow by profession. It should work for users such as:
+> 你不需要会编程，也不需要先学会写需求。你只需要用自然语言描述自己、目标与偏好，系统会通过引导式对话帮助你整理出个人网站摘要与标准 PRD。
 
-- People who want a polished personal homepage
-- People who want a portfolio site
-- People who want a resume or profile site
-- Freelancers or consultants who need a service presentation page
-- Small teams or companies who need a simple company introduction page
+首页不能把产品包装成“点一下立即生成网站”。首页卖的是：
 
-The language should stay non-technical and avoid industry-heavy wording.
+- 审美能力
+- 降低表达门槛
+- 将模糊想法整理成专业结果的能力
 
-## 4. Goals And Non-Goals
+## 3. 首阶段目标用户
 
-### Goals
+首阶段产品先面向简体中文用户，界面语言、对话语言、输出文档都以简体中文为默认和唯一正式支持语言。
 
-- Explain the product idea clearly through a high-design homepage
-- Build trust that the product can help users create a beautiful and thoughtful website direction
-- Guide users into a structured intake flow with minimal friction
-- Let users choose a website business template and a visual style reference, with skip options
-- Support image uploads during the conversation as reference materials
-- Produce two outputs at the end of the conversation:
-  - A short, readable summary for the user
-  - A complete standard PRD in Markdown format
-- Support revisiting the session later through a unique token without requiring login
+目标用户仍保持宽泛，不按具体职业切得太窄，主要包括：
 
-### Non-Goals
+- 想做体面个人主页的人
+- 想做作品集网站的人
+- 想做简历型网站的人
+- 想展示服务能力的独立职业者
+- 想做简单公司介绍页的小团队或小公司
 
-- User accounts or authentication
-- Payments or subscriptions
-- Multi-user collaboration
-- Full website generation
-- Advanced image understanding pipelines
-- Template marketplace or CMS
+首阶段不处理多语言站点需求，也不优先处理英文文案生成。
 
-## 5. Visual Direction
+## 4. 成功标准与非目标
 
-The homepage should feel forward-looking, premium, and design-led. It should not look like a generic SaaS landing page.
+### 4.1 成功标准
 
-The product should be designed mobile-first. Mobile compatibility is not a secondary polish item for this MVP. The homepage and intake flow should both assume that a large share of users will arrive and complete the process on phones.
+- 首页能用高设计感建立信任，并清楚说明产品价值
+- 用户能从首页自然进入需求梳理页
+- 需求梳理页支持模板选择、风格参考、对话引导、图片上传
+- 系统通过真实 LLM 对话逐步收敛需求，而不是静态问卷
+- 系统能在流程中维护结构化摘要，并在结束时输出中文摘要与中文 PRD
+- 用户可通过唯一 token 回到本次会话继续修改
+- 移动端能完整走通整个流程，且体验不降级为“勉强能用”
 
-The visual reference direction should borrow the following principles from the Apple design language described in the referenced Stitch design document:
+### 4.2 非目标
 
-- Strong rhythm created by alternating dark and light sections
-- Very restrained use of accent color, reserved mainly for interactive elements
-- Large-scale typography with significant whitespace
-- Product outputs treated like display objects rather than dashboard widgets
+- 账号体系
+- 支付与订阅
+- 多人协作
+- 网站直接生成
+- 复杂图片识别或生成工作流
+- 模板市场或 CMS
+- 多语言输出
 
-The site should avoid excessive "AI glow" aesthetics, busy gradients, or a cluttered card-heavy layout. The design should communicate taste, calmness, and confidence.
+## 5. 设计方向
 
-Mobile-first visual constraints:
+整体视觉方向为前卫、高级、设计感强，但不能滑向廉价的“AI 光效风”。产品要让用户感觉：
 
-- Key value proposition and primary CTA must be visible quickly without excessive scrolling on phone screens
-- Typography must remain premium-looking on mobile without collapsing into oversized headline blocks that crowd the viewport
-- Visual showcase areas must remain legible and elegant in a single-column layout
-- Touch targets must be sized for finger interaction rather than mouse precision
+- 它真的懂审美
+- 它是克制而专业的
+- 它适合帮助普通人做出好看的网站
 
-Reference:
+视觉参考可借鉴 Apple 风格设计文档中的以下原则：
 
-- Apple design reference: https://github.com/VoltAgent/awesome-design-md/blob/main/design-md/apple/DESIGN.md
+- 大标题与大留白
+- 深浅背景交替形成节奏
+- 强调色极少，只用于 CTA 和关键交互
+- 把“结果”当成展品展示，而不是做成普通 SaaS 面板
 
-## 6. Homepage Responsibilities
+参考：
 
-The homepage has two jobs:
+- Apple 设计文档：https://github.com/VoltAgent/awesome-design-md/blob/main/design-md/apple/DESIGN.md
 
-1. Explain the product idea and reduce psychological friction
-2. Push users toward starting the guided intake flow
+### 5.1 移动端优先
 
-The primary goal is understanding. The secondary goal is conversion into the intake page.
+本产品必须按 mobile-first 设计。移动端兼容不是收尾工作，而是设计前提。
 
-The homepage should make it obvious that:
+移动端约束包括：
 
-- This product is for people who do not know how to code
-- Users do not need to already know all their requirements
-- The output is not just a chat transcript, but a structured deliverable
+- 核心价值与主 CTA 必须在常见手机视口中尽快出现
+- 首页视觉层级不能因为单栏布局而失去高级感
+- 对话页必须能在手机上完成模板选择、风格选择、聊天、上传图片、查看摘要、获取文档
+- 所有点击区域按触屏设计，而不是按桌面鼠标精度设计
 
-## 7. Homepage Information Architecture
+## 6. 首页职责
 
-The homepage should use a small number of sections with high visual quality. Five sections are sufficient for the MVP.
+首页只承担两个职责：
 
-The homepage should be designed from the mobile layout upward, then expanded for tablet and desktop. The mobile version should preserve the premium feeling rather than becoming a stripped-down fallback.
+1. 让用户理解这个产品为什么存在、能帮他解决什么问题
+2. 把用户引导到需求梳理页
 
-### 7.1 Hero Section
+首页主目标是“理解”，次目标是“进入对话流程”。
 
-The hero is the most important section and should combine visual impact with immediate clarity.
+首页必须清楚传达：
 
-Recommended structure:
+- 适合不会编程的人
+- 不需要先想清楚全部需求
+- 输出结果不是聊天记录，而是可继续使用的专业文档
 
-- Large headline
-- Short subheadline
-- Primary CTA to start the intake flow
-- Secondary CTA to explain how it works
-- A polished visual object representing either a future website preview or a refined requirements artifact
+## 7. 首页信息架构
 
-Mobile behavior:
+首页控制在 5 个核心区块，避免做成内容过多的营销长页。
 
-- The CTA should remain above the fold on common phone viewport sizes
-- The supporting visual should not push the headline and CTA too far downward
-- The section should read as one clear story in a single column
+### 7.1 首屏 Hero
 
-Suggested message direction:
+首屏负责同时完成“讲清楚”和“打动人”。
 
-- Headline direction: "把你想要的网站，说出来。"
-- Supporting direction: "不需要会编程，也不需要先写需求。通过一次引导式对话，整理出属于你的个人网站方案与标准 PRD。"
+推荐结构：
 
-Primary CTA examples:
+- 强主标题
+- 一句降低门槛的副标题
+- 主 CTA：进入需求梳理页
+- 次 CTA：了解产品如何工作
+- 一个高质感视觉载体，用于暗示未来的网站结果或最终 PRD 成果
 
-- "开始梳理我的网站"
-- "开始定义我的个人网站"
+建议文案方向：
 
-### 7.2 Problem And Product Idea Section
+- 主标题：`把你想要的网站，说出来。`
+- 副标题：`不需要会编程，也不需要先写需求。通过一次引导式对话，整理出属于你的个人网站方案与标准 PRD。`
 
-This section explains why the product exists by focusing on real user pain:
+CTA 方向：
 
-- Users know they need a website but do not know what shape it should take
-- Users can recognize websites they like but cannot express the design direction clearly
-- Users do not know how to write a PRD or communicate requirements to a developer or AI
+- `开始梳理我的网站`
+- `开始定义我的个人网站`
 
-The response from the product should be framed as:
+移动端要求：
 
-- First clarify who you are and what your site needs to do
-- Then anchor the visual direction
-- Then generate a professional output document
+- 主 CTA 在首屏尽快可见
+- 视觉物料不能把主文案压到过深位置
+- 单栏状态下仍然保持完整叙事
 
-### 7.3 Three-Step Flow Section
+### 7.2 痛点与产品理念区
 
-This section should reduce anxiety and explain the process simply:
+这一段解释产品为什么存在，聚焦真实问题：
 
-1. Choose a site type and optionally a style reference
-2. Talk through your goals, content, and preferences
-3. Receive a summary and a full PRD
+- 我知道我需要一个网站，但不知道做成什么样
+- 我知道哪些网站好看，但我不会描述
+- 我不会写 PRD，也不会和开发者或 AI 沟通需求
 
-The copy should explicitly signal that this is guided conversation, not a form the user must write alone.
+产品解决方式应被表达为：
 
-### 7.4 Output Showcase Section
+- 先帮用户确定网站类型与目标
+- 再帮助用户锚定视觉方向
+- 最后输出可继续交付的中文文档
 
-This section should show the outcome rather than the chat itself. Present two side-by-side deliverables:
+### 7.3 三步流程区
 
-- Website brief summary
-- Standard PRD document
+这一段只保留最核心的三步，降低用户心理负担：
 
-This helps users understand the value difference between this product and a generic chat assistant.
+1. 选择网站类型与风格参考，或跳过
+2. 通过对话梳理目标、内容、偏好与边界
+3. 获取摘要与完整 PRD
 
-On mobile, these outputs should stack vertically and remain readable as strong content previews rather than tiny desktop cards shrunk to fit.
+文案必须强调“这是被引导完成”，不是“自己填一张复杂表单”。
 
-### 7.5 Closing CTA Section
+### 7.4 结果展示区
 
-The page should end with a simple restatement:
+这一段展示系统最终产物，而不是展示对话本身。
 
-- No coding required
-- Professional output
-- One clear next step
+建议展示两个结果卡片：
 
-The closing CTA should remain consistent with the hero CTA.
+- 网站需求摘要
+- 标准 PRD 文档
 
-## 8. Intake Page Responsibilities
+移动端时这两个结果改为纵向堆叠，不允许缩成小得无法阅读的桌面卡片。
 
-The intake page has one job:
+### 7.5 页尾 CTA
 
-> Guide a non-technical user from vague intent to a structured website summary and PRD.
+最后再统一收一次价值主张：
 
-It should feel guided rather than technical. The user should feel that the system is organizing their thoughts, not interrogating them.
+- 不需要会编程
+- 输出足够专业
+- 下一步只有一个：开始梳理网站需求
 
-## 9. Intake Page Flow
+## 8. 需求梳理页职责
 
-The intake page should use a staged flow with a top progress indicator and a chat-led primary interaction model.
+需求梳理页只负责一件事：
 
-The intake flow must be fully usable on mobile. A phone user should be able to select templates, review style references, upload images, answer prompts, and read the final summary and PRD access state without needing a desktop browser.
+> 把一个没有技术背景、表达也可能不完整的用户，引导成一份结构清晰、可继续使用的中文摘要与中文 PRD。
 
-Recommended steps:
+用户感知应该是：
 
-1. Template
-2. Style
-3. Positioning
-4. Content
-5. Features
-6. Generate
+- 系统在帮助我思考
+- 系统能听懂我说的话
+- 系统在逐步整理，而不是机械追问
 
-### 9.1 Step 1: Business Template Selection
+## 9. 真实 LLM 是核心能力
 
-This step helps users choose the general shape of the site before they need to explain details.
+本产品的核心价值依赖真实 LLM，而不是规则引擎或 mock 对话。
 
-Initial template options:
+首阶段 MVP 也必须接入真实 LLM，至少覆盖以下两类核心能力：
 
-- Personal portfolio
-- Personal resume
-- Personal brand
-- Service introduction
-- Company introduction
-- Booking or consulting page
-- Other
-- Skip
+- 对话引导：根据用户当前信息缺口动态追问，而不是固定问卷
+- 文档生成：根据结构化摘要与上下文生成中文摘要与中文 PRD
 
-The template acts as an anchor for later questions and default content structure. It should not rigidly constrain the final PRD.
+如果没有真实 LLM，MVP 只能验证界面和接口通路，无法验证产品核心假设，因此不满足本产品的 MVP 定义。
 
-### 9.2 Step 2: Style Reference Selection
+## 10. 对话流程与阶段编排
 
-This step presents a set of homepage-style previews and allows the user to choose one or skip.
+需求梳理页采用带步骤条的聊天主交互。步骤定义如下：
 
-Initial style directions:
+1. 模板
+2. 风格
+3. 定位
+4. 内容
+5. 功能
+6. 生成
 
-- Minimal premium
-- Modern professional
-- Visual portfolio
-- Warm and trustworthy
-- Futuristic
-- Skip
+系统必须明确当前阶段，并基于当前阶段使用不同的引导策略。
 
-The chosen style should influence the visual direction recorded in the PRD. It should not automatically force a layout or content model.
+### 10.1 模板阶段
 
-### 9.3 Step 3: Positioning
+先给用户一个低门槛起点，帮助他确定网站大类。
 
-The system should guide the user to express:
+首版模板选项：
 
-- Who they are
-- Who the site is for
-- What visitors should do after seeing the site
-- What kind of feeling the site should create
+- 个人作品页
+- 个人简历页
+- 个人品牌页
+- 服务介绍页
+- 公司介绍页
+- 预约/咨询型主页
+- 其他
+- 跳过
 
-This step should establish the website's purpose before discussing detailed features.
+模板作用：
 
-### 9.4 Step 4: Content
+- 为后续提问确定默认结构
+- 为摘要和 PRD 提供网站类型锚点
 
-The system should gather content modules dynamically based on the selected template and the user's answers.
+模板不是最终限制，后续允许根据用户表达偏离模板默认结构。
 
-Examples:
+### 10.2 风格阶段
 
-- Portfolio-oriented flows should ask about projects, case studies, media, and presentation style
-- Resume-oriented flows should ask about experience, skills, projects, education, and contact channels
-- Company-oriented flows should ask about business overview, services, team, cases, and contact methods
+给出一组首页视觉参考卡片，帮助不会描述视觉风格的用户先做方向选择。
 
-The system should turn freeform input into structured content modules.
+首版风格方向：
 
-### 9.5 Step 5: Features And Boundaries
+- 极简高级
+- 现代专业
+- 强视觉作品集
+- 温和可信
+- 前卫未来感
+- 跳过
 
-The system should confirm practical needs in user-friendly language, such as:
+风格只定义视觉方向，不直接决定功能结构。
 
-- Contact form
-- Booking link
-- Blog or articles
-- Case filters
+### 10.3 定位阶段
+
+系统引导用户回答：
+
+- 你是谁
+- 网站主要给谁看
+- 希望访客看完后做什么
+- 想传达怎样的感觉
+
+这一阶段主要建立网站目的与品牌感，不应过早问细节功能。
+
+### 10.4 内容阶段
+
+系统根据模板和前文内容，继续收集：
+
+- 网站应包含哪些模块
+- 是否有作品、经历、案例、服务说明、联系方式、文章、预约等
+- 哪些内容已准备好，哪些只是规划
+
+这一阶段的目标是把自然语言整理成结构化内容模块，而不是简单记录所有原话。
+
+### 10.5 功能阶段
+
+系统用普通人能理解的话确认功能与边界，例如：
+
+- 联系表单
+- 预约入口
+- 博客
 - FAQ
-- Single-page or multi-page structure
-- Things the user definitely does not want
+- 案例筛选
+- 单页还是多页
+- 明确不想要什么
 
-This should never feel like a technical requirements interview.
+### 10.6 生成阶段
 
-### 9.6 Step 6: Generate
+当系统判断信息足够后，不再要求用户继续参与，而是进入整理状态，最终产出：
 
-Once enough information is available, the user should not need to continue participating. The system should move into finalization and produce:
+- 用户可读摘要
+- 完整 PRD 文档
+- 回访 token / 链接
 
-- A user-friendly summary
-- A standard PRD document in Markdown
-- A session token or revisit link for future edits
+## 11. 阶段切换、返回与跳过规则
 
-## 10. Intake Page Layout
+步骤条不仅是展示，还需要有明确规则。
 
-Desktop layout should behave like a three-part experience:
+### 11.1 阶段完成条件
 
-- Top progress bar
-- Main conversation area
-- Real-time summary and attachments area
+- 模板阶段：选中模板或主动跳过后完成
+- 风格阶段：选中风格或主动跳过后完成
+- 定位阶段：系统已获得“用户身份、受众、目标、气质”四项中的大部分关键信息时完成
+- 内容阶段：系统已整理出主要页面/模块结构时完成
+- 功能阶段：主要功能点与排除项已明确时完成
+- 生成阶段：摘要与 PRD 均生成完成
 
-Mobile should collapse into a single-column flow while preserving the step model. The mobile version should be treated as a first-class experience, not a simplified fallback.
+### 11.2 返回修改
 
-### 10.1 Top Area
+- 用户可以回到已完成的前序阶段修改
+- 修改前序阶段后，系统需要标记后续摘要可能已过期，并在下一轮生成时重新整合
+- 模板或风格一旦修改，系统需要重新评估后续建议提问路径
 
-- Step indicator
-- Session status message such as "正在梳理定位" or "正在生成需求文档"
+### 11.3 跳过逻辑
 
-Mobile requirements:
+- 模板可跳过，跳过后系统进入“未定模板”模式，并在后续对话中尝试推断网站类型
+- 风格可跳过，跳过后系统默认视觉方向为“待确认”，后续在定位或内容阶段通过提问补充
 
-- Step progress should remain visible without taking too much vertical space
-- Status information should stay compact and readable
-- Sticky behavior is acceptable if it improves orientation without blocking content
+## 12. Prompt 策略与上下文管理
 
-### 10.2 Main Conversation Area
+系统必须按阶段组织 prompt，而不是整个会话只使用一个系统 prompt。
 
-- Chat-like interaction
-- Short assistant prompts
-- Freeform user input
-- Optional quick-select responses when users need help expressing themselves
+至少需要以下 prompt 层：
 
-Mobile requirements:
+- 全局系统 prompt：定义产品身份、语言要求、输出目标、语气和禁止项
+- 阶段 prompt：对应模板、风格、定位、内容、功能、生成六个阶段
+- 提取 prompt：从当前会话中提取结构化摘要
+- 文档 prompt：根据结构化摘要与必要上下文生成最终中文摘要和中文 PRD
 
-- The input area should remain usable above the software keyboard
-- Quick-select options should be tappable and not densely packed
-- Message width and spacing should prioritize readability on narrow screens
+### 12.1 中文要求
 
-### 10.3 Summary Sidebar
+首阶段 prompt 需明确：
 
-The summary should update during the conversation and include:
+- 对话默认使用简体中文
+- 输出摘要必须是简体中文
+- 输出 PRD 必须是简体中文
+- 若用户输入少量英文品牌名或术语，可保留原文，但整体输出语言不切换
 
-- Site type
-- Audience
-- Positioning
-- Visual direction
-- Page structure
-- Content modules
-- Functional requirements
+### 12.2 上下文管理
 
-This sidebar helps users trust that the system is interpreting them correctly.
+系统不能无限制把完整历史对话直接塞给模型。
 
-On mobile, this should convert into a collapsible summary panel or step-linked summary section rather than a persistent side column.
+需要管理三类上下文：
 
-### 10.4 Attachment Area
+- 原始消息历史
+- 阶段性结构化摘要
+- 当前阶段最近几轮关键对话
 
-The page should support image uploads during the conversation. Users may upload:
+随着会话变长，应优先把阶段性摘要作为上下文主干，而不是反复传输全部原始消息。
 
-- Personal photos
-- Work samples
-- Brand assets
-- Screenshots of websites they like
-- Reference layouts or visual inspiration
+## 13. 摘要更新策略
 
-Attachments should be previewed in the session and recorded in the final PRD as supporting materials.
+摘要不能简单理解为“每条消息都用 LLM 全量重算”。
 
-Mobile requirements:
+建议采用分层策略：
 
-- Image upload should support direct photo selection from the phone
-- Previews should remain lightweight and vertically scannable
-- Upload and removal actions should be easy to perform with touch
+- 前端显示层：实时显示当前已知的结构化信息，不要求每条消息都触发完整 LLM 提取
+- 后端摘要层：在以下时机触发结构化提取
+  - 阶段完成时
+  - 用户提供明显新增信息时
+  - 生成 PRD 前最后一次统一整理时
 
-## 11. Output Requirements
+这样可以控制成本、响应速度和摘要稳定性。
 
-Each completed session should produce two outputs.
+摘要至少应包含：
 
-### 11.1 User Summary
+- 网站类型
+- 用户身份
+- 目标受众
+- 核心目标
+- 视觉方向
+- 页面/模块结构
+- 主要功能
+- 明确排除项
+- 附件与参考素材
 
-This is a concise, readable summary meant for users to quickly confirm the result of the conversation. It should be simple and human-readable.
+## 14. 图片上传与附件约束
 
-### 11.2 PRD Document
+用户可在对话中上传图片，用于表达自己想要的网站风格、内容素材或参考对象。
 
-The PRD should be a standard Markdown document suitable for downstream use by developers or another AI system.
+允许的用途包括：
 
-The PRD depth should match a standard product-level document, including at minimum:
+- 用户头像或个人照片
+- 作品截图
+- 品牌素材
+- 喜欢的网站截图
+- 页面结构参考图
 
-- Project objective
-- Target audience
-- Website type
-- Visual direction
-- Visitor goals
-- Information architecture or page structure
-- Module-level content summary
-- Feature requirements
-- Constraints and exclusions
-- Attachment list and descriptions
+### 14.1 首版安全与边界约束
 
-This PRD should be sufficiently structured to serve as the input for a later AI website generation step.
+首版必须加入基础限制：
 
-## 12. Session Model
+- 文件类型白名单，仅允许常见图片格式
+- 单文件大小限制
+- 单会话上传数量限制
+- 上传失败不阻断对话主流程
 
-The MVP should not require login. Instead, every intake session should be identified by a unique token.
+附件需要被记录到最终 PRD 的“参考资料/附件”部分。
 
-This token must support:
+## 15. 会话模型
 
-- Returning to the session later
-- Reviewing the current summary
-- Editing or continuing the requirement clarification later
-- Accessing the final PRD document
+系统不做登录，每次需求梳理会话由一个唯一 token 标识。
 
-The token should represent a single isolated session. All messages, summaries, attachments, and output documents must remain bound to that token.
+token 需要支持：
 
-## 13. Concurrency Design
+- 回到本次会话
+- 继续修改需求
+- 查看当前摘要
+- 查看最终 PRD
 
-The MVP is designed for internal testing rather than public-scale launch.
+所有消息、摘要、附件、文档都必须严格绑定到同一个 token，不能串会话。
 
-Concurrency rule:
+## 16. 并发与排队
 
-- At most 5 active sessions may occupy LLM processing capacity at the same time
-- The 6th session and beyond enter a queue
-- Queued sessions start only when one of the currently active sessions reaches the completed document state and frees a slot
+首阶段是内测级产品，并发能力按小规模使用设计。
 
-Important clarification:
+规则如下：
 
-- Opening the page does not consume a concurrency slot
-- A slot is consumed only when a session enters the active LLM-guided processing phase
+- 同时最多 5 个活跃会话占用 LLM 处理资源
+- 第 6 个及之后进入处理阶段的会话进入等待队列
+- 页面打开本身不占资源槽位
+- 只有进入真实 LLM 处理阶段后才占用一个活跃槽位
+- 同一 token 在同一时刻只能有一个进行中的 LLM 任务
 
-### 13.1 Session States
-
-Recommended session states:
+建议状态：
 
 - `draft`
 - `queued`
@@ -408,61 +442,49 @@ Recommended session states:
 - `completed`
 - `failed`
 
-The expected meaning:
+等待中的用户仍然应该能够：
 
-- `draft`: Session exists but has not entered active LLM processing
-- `queued`: Waiting for one of the 5 active slots
-- `active`: Ongoing guided interaction with LLM support
-- `generating_document`: Final summary and PRD are being produced
-- `completed`: Outputs are ready and the slot is released
-- `failed`: Processing failed and can be retried
+- 选择模板
+- 选择风格
+- 上传图片
+- 输入初始需求描述
 
-### 13.2 Queue Behavior
+## 17. 轮询与状态反馈
 
-- Different sessions may proceed in parallel up to the 5-session limit
-- A single session must remain serial internally
-- A session cannot run multiple LLM turns or multiple document generations at the same time
-- New queued users should see a clear waiting state and queue feedback
+首阶段可以使用轮询而不是 WebSocket，但轮询策略必须明确。
 
-Users in the queue should still be allowed to:
+建议：
 
-- Choose a template
-- Choose a style reference
-- Upload images
-- Prepare an initial message
+- 对话处理中：短轮询，用于更新当前回复与阶段状态
+- 文档生成中：较长轮询，并带退避策略
+- 出现失败时：停止自动轮询，改为显式重试
 
-They should not feel blocked from all interaction while waiting.
+前端需要有明确状态文案：
 
-## 14. Technical Architecture
+- 等待中
+- 正在思考
+- 正在整理摘要
+- 正在生成 PRD
+- 生成完成
+- 生成失败，可重试
 
-The recommended MVP stack is:
+## 18. 技术架构
 
-- Frontend: React + Tailwind CSS
-- Backend: Python Flask
-- Database: SQLite for the first internal test
-- File storage: local filesystem
-- Final document format: Markdown
+推荐技术栈：
 
-This should be implemented as a monolithic application with clear module boundaries.
+- 前端：React + Tailwind CSS
+- 后端：Python Flask
+- 数据库：SQLite
+- 文件存储：本地文件系统
 
-The frontend should follow a mobile-first responsive strategy:
+当前阶段仍然适合单体架构，但模块边界必须清晰。
 
-- Default layout and spacing rules should target phone screens first
-- Tablet and desktop layouts should progressively enhance the structure
-- Component APIs should avoid assuming hover, wide horizontal space, or mouse-first interactions
-
-### 14.1 Frontend Routes
-
-Minimum routes:
+前端至少包含两个核心路由：
 
 - `/`
 - `/session/:token`
 
-The React frontend should treat these routes as responsive surfaces rather than separate desktop and mobile variants. A single component system with mobile-first Tailwind breakpoints is preferred for the MVP.
-
-### 14.2 Backend Responsibilities
-
-Recommended backend modules:
+后端建议按职责拆分：
 
 - `sessions`
 - `chat`
@@ -470,111 +492,44 @@ Recommended backend modules:
 - `summaries`
 - `documents`
 - `templates`
+- `llm`
+- `queue`
 
-### 14.3 Data Persistence
+开发环境需支持前后端分离调试，因此需要明确跨域方案。
 
-Recommended tables:
+## 19. 错误处理
 
-- `sessions`
-- `messages`
-- `attachments`
-- `summary_snapshots`
-- `documents`
+错误信息必须用普通用户能理解的话来表达。
 
-Suggested session fields:
+### 19.1 首页
 
-- `token`
-- `status`
-- `selected_template`
-- `selected_style`
-- `queue_position`
-- `started_at`
-- `completed_at`
-- `last_activity_at`
-- `created_at`
-- `updated_at`
+- 服务暂不可用时，仅提示稍后重试，不暴露技术细节
 
-Recommended attachment fields:
+### 19.2 需求梳理页
 
-- `session_token`
-- `file_path`
-- `file_name`
-- `mime_type`
-- `caption`
-- `message_id`
-- `created_at`
+- token 无效或已失效：提示这次整理链接可能已失效，并提供重新开始
+- 图片上传失败：允许重试，不中断主流程
+- PRD 生成失败：若摘要仍在，保留摘要并允许重新生成文档
+- 用户输入过于模糊：不报错，而是主动给例子或选项
 
-Recommended document fields:
+## 20. MVP 验收标准
 
-- `session_token`
-- `summary_text`
-- `prd_markdown`
-- `status`
-- `version`
-- `created_at`
-- `updated_at`
+这一阶段算成功，至少需要满足：
 
-The real-time summary should be stored in structured JSON form rather than only prose so that it can later support AI website generation more reliably.
+- 首页能清晰表达产品价值，并具备高质感视觉呈现
+- 用户能从首页进入真实的需求梳理流程
+- 需求梳理流程中存在真实 LLM 引导，而不是纯规则或 mock
+- 用户能完成模板选择、风格选择、自由表达、图片上传
+- 系统能产出中文摘要与中文 PRD
+- 用户可通过 token 回访并修改
+- 移动端浏览器能完整完成整个流程
 
-### 14.4 LLM Processing Model
+## 21. 产品价值分层
 
-The backend should not rely on long synchronous request handling for the full chat lifecycle.
+这个产品有三层价值，必须保持边界清楚：
 
-Preferred model:
+- 首页卖的是审美能力与理解门槛低
+- 对话页卖的是被引导梳理需求
+- 输出结果卖的是专业且可继续使用的文档
 
-- Frontend sends a user message
-- Backend stores the message
-- Backend schedules an assistant turn job
-- A worker processes the LLM request
-- Frontend receives progress and output through polling or SSE
-
-This keeps the web layer from being blocked and makes queue management practical even in the MVP.
-
-## 15. Error Handling
-
-Errors must be expressed in human language because the target users are non-technical.
-
-Homepage:
-
-- If the service is unavailable, show a short retry message without technical details
-
-Intake page:
-
-- Invalid or expired token: explain that the session link may no longer be valid and offer restart
-- Upload failure: allow retry without blocking the rest of the flow
-- PRD generation failure: preserve the summary if possible and offer document regeneration
-- Weak or vague user input: do not error; instead provide examples and guided options
-
-## 16. MVP Success Criteria
-
-The MVP is successful if it can do the following reliably:
-
-- Present the product clearly through the homepage
-- Lead users into the intake page through a strong CTA
-- Support template selection, style selection, guided conversation, and image upload
-- Continuously build a structured summary during the session
-- Produce a readable user summary
-- Produce a standard Markdown PRD
-- Preserve the session through a unique token for later return and modification
-- Work well on mobile browsers, including the full intake flow and final output access
-
-## 17. Recommended Implementation Order
-
-The implementation should proceed in this order:
-
-1. Define the structured summary schema and PRD schema
-2. Build backend session, storage, and document-generation foundations
-3. Design and implement the intake page flow mobile-first
-4. Build the homepage visual experience mobile-first, then expand it for larger screens once product messaging is fully grounded
-
-This order reduces rework because the homepage should accurately reflect the real product flow, and the intake page should be built around the final output model.
-
-## 18. Final Product Logic
-
-The system has three layers of value that must stay distinct:
-
-- The homepage sells taste and clarity
-- The intake page sells guided expression
-- The backend output sells professional deliverables
-
-If those three layers stay cleanly separated, the product will feel more intentional and credible than a generic "AI website chat" experience.
+只要这三层不混，这个产品就会明显区别于普通“AI 聊天建站”入口。

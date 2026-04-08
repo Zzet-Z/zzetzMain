@@ -1,84 +1,93 @@
-# Personal Website MVP Implementation Plan
+# 个人网站 MVP 实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a mobile-first MVP with a premium marketing homepage and a guided intake flow that turns a non-technical user's website idea into a summary and Markdown PRD.
+**Goal:** 构建一个面向简体中文用户、移动端优先的 MVP：首页负责建立审美与产品认知，需求梳理页通过真实 LLM 对话引导用户输出中文摘要与中文 PRD。
 
-**Architecture:** Use a monorepo with a React + Tailwind frontend and a Flask + SQLite backend. The backend owns session tokens, message persistence, attachments, a 5-slot queue, structured summary snapshots, and PRD generation; the frontend owns the mobile-first homepage and intake experience, using polling first for queue and generation state.
+**Architecture:** 采用单仓库结构，前端使用 React + Tailwind CSS，后端使用 Flask + SQLite。后端负责 `session token`、会话状态、5 会话并发队列、图片上传、结构化摘要、真实 LLM 调用、最终 PRD 渲染；前端负责 mobile-first 的首页与需求梳理体验，并通过短轮询/长轮询驱动状态更新。
 
 **Tech Stack:** React, TypeScript, Vite, Tailwind CSS, Vitest, Flask, SQLAlchemy, SQLite, pytest
 
 ---
 
-## File Structure
+## 文件结构
 
-### Repository Layout
+### 仓库布局
 
-- Create: `frontend/package.json` for the React app scripts and frontend dependencies
-- Create: `frontend/tsconfig.json` for TypeScript settings
-- Create: `frontend/vite.config.ts` for Vite configuration
-- Create: `frontend/postcss.config.js` for Tailwind PostCSS integration
-- Create: `frontend/tailwind.config.ts` for Tailwind theme tokens
-- Create: `frontend/index.html` for Vite entry HTML
-- Create: `frontend/src/main.tsx` for React bootstrapping
-- Create: `frontend/src/app.tsx` for the route shell
-- Create: `frontend/src/styles.css` for global styles and design tokens
-- Create: `frontend/src/lib/api.ts` for HTTP accessors
-- Create: `frontend/src/lib/types.ts` for frontend data contracts
-- Create: `frontend/src/routes/home-page.tsx` for the homepage
-- Create: `frontend/src/routes/session-page.tsx` for the session route
-- Create: `frontend/src/components/home/hero.tsx` for the homepage hero
-- Create: `frontend/src/components/home/problem.tsx` for the problem framing section
-- Create: `frontend/src/components/home/process.tsx` for the three-step process section
-- Create: `frontend/src/components/home/output-preview.tsx` for the summary and PRD output showcase
-- Create: `frontend/src/components/home/final-cta.tsx` for the final conversion section
-- Create: `frontend/src/components/intake/step-header.tsx` for the sticky step navigation
-- Create: `frontend/src/components/intake/template-selector.tsx` for business template cards
-- Create: `frontend/src/components/intake/style-selector.tsx` for style preview cards
-- Create: `frontend/src/components/intake/chat-panel.tsx` for the guided chat block
-- Create: `frontend/src/components/intake/summary-panel.tsx` for the summary drawer or sidebar
-- Create: `frontend/src/components/intake/attachment-panel.tsx` for file upload and preview
-- Create: `frontend/src/components/ui/button.tsx` for shared CTA styling
-- Create: `frontend/src/fixtures/template-options.ts` for local template fixtures
-- Create: `frontend/src/fixtures/style-preview-options.ts` for local style fixtures
-- Create: `frontend/src/test/app-shell.test.tsx` for app shell coverage
-- Create: `frontend/src/test/home-page.test.tsx` for homepage coverage
-- Create: `frontend/src/test/session-page.test.tsx` for intake layout coverage
-- Create: `frontend/src/test/session-flow.test.tsx` for API-wired navigation coverage
-- Create: `frontend/src/test/mobile-states.test.tsx` for mobile and queued states
-- Create: `backend/pyproject.toml` for backend dependencies and pytest config
-- Create: `backend/app/__init__.py` for Flask app factory
-- Create: `backend/app/config.py` for settings
-- Create: `backend/app/db.py` for SQLAlchemy setup
-- Create: `backend/app/models.py` for sessions, messages, attachments, summaries, and documents
-- Create: `backend/app/schemas.py` for API payload schemas
-- Create: `backend/app/routes/health.py` for a basic health endpoint
-- Create: `backend/app/routes/sessions.py` for session create/read/update endpoints
-- Create: `backend/app/routes/messages.py` for chat turn creation and retrieval
-- Create: `backend/app/routes/uploads.py` for image upload metadata handling
-- Create: `backend/app/routes/documents.py` for summary and PRD retrieval
-- Create: `backend/app/services/template_catalog.py` for business templates and style reference definitions
-- Create: `backend/app/services/summary_builder.py` for structured summary updates
-- Create: `backend/app/services/document_renderer.py` for Markdown PRD rendering
-- Create: `backend/app/services/queue_manager.py` for 5-slot queue orchestration
-- Create: `backend/app/services/storage.py` for attachment file paths
-- Create: `backend/app/services/intake_engine.py` for prompt-stage logic and mock assistant turns
-- Create: `backend/app/worker.py` for background job execution
-- Create: `backend/run.py` for local development startup
-- Create: `backend/tests/test_health.py` for health endpoint coverage
-- Create: `backend/tests/test_sessions_api.py` for session lifecycle coverage
-- Create: `backend/tests/test_queue_and_generation.py` for queueing and document generation coverage
-- Create: `backend/tests/test_uploads_api.py` for attachment upload coverage
-- Create: `README.md` for local setup and repository overview
+- Create: `frontend/package.json`
+- Create: `frontend/tsconfig.json`
+- Create: `frontend/vite.config.ts`
+- Create: `frontend/postcss.config.js`
+- Create: `frontend/tailwind.config.ts`
+- Create: `frontend/index.html`
+- Create: `frontend/src/main.tsx`
+- Create: `frontend/src/app.tsx`
+- Create: `frontend/src/styles.css`
+- Create: `frontend/src/lib/api.ts`
+- Create: `frontend/src/lib/types.ts`
+- Create: `frontend/src/routes/home-page.tsx`
+- Create: `frontend/src/routes/session-page.tsx`
+- Create: `frontend/src/components/home/hero.tsx`
+- Create: `frontend/src/components/home/problem.tsx`
+- Create: `frontend/src/components/home/process.tsx`
+- Create: `frontend/src/components/home/output-preview.tsx`
+- Create: `frontend/src/components/home/final-cta.tsx`
+- Create: `frontend/src/components/intake/step-header.tsx`
+- Create: `frontend/src/components/intake/template-selector.tsx`
+- Create: `frontend/src/components/intake/style-selector.tsx`
+- Create: `frontend/src/components/intake/chat-panel.tsx`
+- Create: `frontend/src/components/intake/summary-panel.tsx`
+- Create: `frontend/src/components/intake/attachment-panel.tsx`
+- Create: `frontend/src/components/ui/button.tsx`
+- Create: `frontend/src/test/app-shell.test.tsx`
+- Create: `frontend/src/test/home-page.test.tsx`
+- Create: `frontend/src/test/session-page.test.tsx`
+- Create: `frontend/src/test/session-flow.test.tsx`
+- Create: `frontend/src/test/mobile-states.test.tsx`
+- Create: `backend/pyproject.toml`
+- Create: `backend/run.py`
+- Create: `backend/app/__init__.py`
+- Create: `backend/app/config.py`
+- Create: `backend/app/db.py`
+- Create: `backend/app/models.py`
+- Create: `backend/app/schemas.py`
+- Create: `backend/app/routes/health.py`
+- Create: `backend/app/routes/sessions.py`
+- Create: `backend/app/routes/messages.py`
+- Create: `backend/app/routes/uploads.py`
+- Create: `backend/app/routes/documents.py`
+- Create: `backend/app/services/template_catalog.py`
+- Create: `backend/app/services/queue_manager.py`
+- Create: `backend/app/services/storage.py`
+- Create: `backend/app/services/summary_builder.py`
+- Create: `backend/app/services/document_renderer.py`
+- Create: `backend/app/services/intake_state_machine.py`
+- Create: `backend/app/services/llm_client.py`
+- Create: `backend/app/services/llm_orchestrator.py`
+- Create: `backend/app/prompts/system.md`
+- Create: `backend/app/prompts/template.md`
+- Create: `backend/app/prompts/style.md`
+- Create: `backend/app/prompts/positioning.md`
+- Create: `backend/app/prompts/content.md`
+- Create: `backend/app/prompts/features.md`
+- Create: `backend/app/prompts/extract_summary.md`
+- Create: `backend/app/prompts/render_prd.md`
+- Create: `backend/tests/test_health.py`
+- Create: `backend/tests/test_sessions_api.py`
+- Create: `backend/tests/test_llm_orchestrator.py`
+- Create: `backend/tests/test_queue_and_generation.py`
+- Create: `backend/tests/test_uploads_api.py`
+- Create: `README.md`
 
-### Target Boundaries
+### 设计边界
 
-- The frontend should remain a single responsive app rather than separate desktop and mobile implementations.
-- The backend should stay monolithic, but queue logic, PRD rendering, and summary updates must be isolated in services.
-- Polling is acceptable for MVP status updates. Do not introduce websockets in the first implementation pass.
-- Attachment uploads should use the local filesystem through a storage service abstraction so later migration is cheap.
+- MVP 只支持简体中文输入与输出。
+- 真实 LLM 必须进入第一版实现，不允许用纯 mock 替代整条主链路。
+- 轮询优先，不做 WebSocket。
+- 前端是一套响应式界面，不拆移动端和桌面端两套应用。
+- SQLite 可以作为内测数据库，但数据访问层要避免把逻辑锁死在 SQLite 特性上。
 
-### Task 1: Scaffold Repository And Tooling
+## Task 1：搭建前后端脚手架与最小运行面
 
 **Files:**
 - Create: `frontend/package.json`
@@ -94,13 +103,12 @@
 - Create: `backend/run.py`
 - Create: `backend/app/__init__.py`
 - Create: `backend/app/config.py`
-- Create: `backend/app/db.py`
 - Create: `backend/app/routes/health.py`
 - Create: `README.md`
 - Test: `frontend/src/test/app-shell.test.tsx`
 - Test: `backend/tests/test_health.py`
 
-- [ ] **Step 1: Write the failing backend health test**
+- [ ] **Step 1: 先写失败的后端健康检查测试**
 
 ```python
 from app import create_app
@@ -116,14 +124,14 @@ def test_healthcheck_returns_ok():
     assert response.get_json() == {"status": "ok"}
 ```
 
-- [ ] **Step 2: Write the failing frontend shell test**
+- [ ] **Step 2: 再写失败的前端壳测试**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../app";
 
-test("renders the homepage route shell", () => {
+test("首页路由可以渲染", () => {
   render(
     <MemoryRouter initialEntries={["/"]}>
       <App />
@@ -136,7 +144,7 @@ test("renders the homepage route shell", () => {
 });
 ```
 
-- [ ] **Step 3: Run the tests to verify both fail**
+- [ ] **Step 3: 运行测试，确认当前确实失败**
 
 Run:
 
@@ -147,10 +155,10 @@ cd frontend && npm test -- app-shell.test.tsx
 
 Expected:
 
-- Backend fails because `create_app` and `/api/health` do not exist
-- Frontend fails because the Vite app and `App` component do not exist
+- 后端失败，因为 `create_app` 和 `/api/health` 还不存在
+- 前端失败，因为 React 壳应用还不存在
 
-- [ ] **Step 4: Create the minimum backend scaffold**
+- [ ] **Step 4: 写出最小后端应用工厂与健康检查**
 
 ```python
 # backend/app/__init__.py
@@ -163,6 +171,9 @@ def create_app(config_overrides=None):
         SECRET_KEY="dev",
         DATABASE_URL="sqlite:///app.db",
         UPLOAD_DIR="uploads",
+        MAX_ACTIVE_SESSIONS=5,
+        MAX_UPLOAD_SIZE_MB=8,
+        MAX_UPLOAD_COUNT=12,
     )
     if config_overrides:
         app.config.update(config_overrides)
@@ -195,11 +206,11 @@ if __name__ == "__main__":
     app.run(debug=True)
 ```
 
-- [ ] **Step 5: Create the minimum frontend scaffold**
+- [ ] **Step 5: 写出最小前端壳**
 
 ```tsx
 // frontend/src/app.tsx
-import { Routes, Route } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
 function HomePage() {
   return <h1>把你想要的网站，说出来。</h1>;
@@ -239,16 +250,16 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
 ```
 
-- [ ] **Step 6: Add the project manifests**
+- [ ] **Step 6: 写出最小依赖清单**
 
 ```json
 // frontend/package.json
 {
-  "name": "personal-website-mvp-frontend",
+  "name": "zzetz-main-frontend",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -281,10 +292,11 @@ body {
 ```toml
 # backend/pyproject.toml
 [project]
-name = "personal-website-mvp-backend"
+name = "zzetz-main-backend"
 version = "0.0.1"
 dependencies = [
   "Flask>=3.1.0",
+  "Flask-Cors>=5.0.0",
   "SQLAlchemy>=2.0.40",
   "pytest>=8.3.5",
 ]
@@ -294,7 +306,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [ ] **Step 7: 重新运行测试，确认脚手架通过**
 
 Run:
 
@@ -305,8 +317,7 @@ cd frontend && npm test -- app-shell.test.tsx
 
 Expected:
 
-- Backend test passes with `1 passed`
-- Frontend test passes with `1 passed`
+- 两边测试都通过
 
 - [ ] **Step 8: Commit**
 
@@ -315,32 +326,25 @@ git add README.md backend frontend
 git commit -m "chore: scaffold frontend and backend apps"
 ```
 
-### Task 2: Implement Backend Data Model And Session APIs
+## Task 2：建立会话模型、数据库与基础 API
 
 **Files:**
-- Modify: `backend/app/__init__.py`
-- Modify: `backend/app/db.py`
+- Create: `backend/app/db.py`
 - Create: `backend/app/models.py`
 - Create: `backend/app/schemas.py`
 - Create: `backend/app/routes/sessions.py`
-- Create: `backend/app/services/template_catalog.py`
+- Modify: `backend/app/__init__.py`
 - Test: `backend/tests/test_sessions_api.py`
 
-- [ ] **Step 1: Write the failing session API test**
+- [ ] **Step 1: 写失败的 session 创建测试**
 
 ```python
 from app import create_app
 
 
-def test_create_session_returns_token_and_defaults(tmp_path):
+def test_create_session_returns_token_and_default_state(tmp_path):
     db_path = tmp_path / "test.db"
-    app = create_app(
-        {
-            "TESTING": True,
-            "DATABASE_URL": f"sqlite:///{db_path}",
-            "UPLOAD_DIR": str(tmp_path / "uploads"),
-        }
-    )
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
     client = app.test_client()
 
     response = client.post("/api/sessions")
@@ -348,24 +352,25 @@ def test_create_session_returns_token_and_defaults(tmp_path):
 
     assert response.status_code == 201
     assert payload["status"] == "draft"
+    assert payload["locale"] == "zh-CN"
     assert payload["selected_template"] is None
     assert payload["selected_style"] is None
     assert len(payload["token"]) >= 20
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: 运行测试，确认失败**
 
 Run:
 
 ```bash
-cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_defaults -q
+cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_default_state -q
 ```
 
 Expected:
 
-- FAIL because `/api/sessions` does not exist
+- 失败，因为 `POST /api/sessions` 还不存在
 
-- [ ] **Step 3: Implement database setup and models**
+- [ ] **Step 3: 写数据库初始化与模型**
 
 ```python
 # backend/app/db.py
@@ -391,7 +396,7 @@ def init_db(database_url: str):
 # backend/app/models.py
 from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
 
@@ -399,12 +404,26 @@ class SessionRecord(Base):
     __tablename__ = "sessions"
 
     token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    locale: Mapped[str] = mapped_column(String(16), default="zh-CN")
     status: Mapped[str] = mapped_column(String(32), default="draft")
+    current_stage: Mapped[str] = mapped_column(String(32), default="template")
     selected_template: Mapped[str | None] = mapped_column(String(64), nullable=True)
     selected_style: Mapped[str | None] = mapped_column(String(64), nullable=True)
     queue_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class MessageRecord(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_token: Mapped[str] = mapped_column(ForeignKey("sessions.token"))
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    stage: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class SummarySnapshot(Base):
@@ -424,9 +443,10 @@ class DocumentRecord(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending")
     summary_text: Mapped[str] = mapped_column(Text, default="")
     prd_markdown: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 ```
 
-- [ ] **Step 4: Implement the session route**
+- [ ] **Step 4: 实现 session 路由**
 
 ```python
 # backend/app/routes/sessions.py
@@ -450,8 +470,10 @@ def create_session():
     return (
         jsonify(
             {
-                "token": token,
+                "token": record.token,
+                "locale": record.locale,
                 "status": record.status,
+                "current_stage": record.current_stage,
                 "selected_template": record.selected_template,
                 "selected_style": record.selected_style,
             }
@@ -463,6 +485,7 @@ def create_session():
 ```python
 # backend/app/__init__.py
 from flask import Flask
+from flask_cors import CORS
 from .db import init_db
 
 
@@ -471,12 +494,17 @@ def create_app(config_overrides=None):
     app.config.from_mapping(
         SECRET_KEY="dev",
         DATABASE_URL="sqlite:///app.db",
+        FRONTEND_ORIGIN="http://127.0.0.1:5173",
         UPLOAD_DIR="uploads",
+        MAX_ACTIVE_SESSIONS=5,
+        MAX_UPLOAD_SIZE_MB=8,
+        MAX_UPLOAD_COUNT=12,
     )
     if config_overrides:
         app.config.update(config_overrides)
 
     init_db(app.config["DATABASE_URL"])
+    CORS(app, resources={r"/api/*": {"origins": app.config["FRONTEND_ORIGIN"]}})
 
     from .routes.health import health_bp
     from .routes.sessions import sessions_bp
@@ -486,22 +514,10 @@ def create_app(config_overrides=None):
     return app
 ```
 
-- [ ] **Step 5: Run the session API test to verify it passes**
-
-Run:
-
-```bash
-cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_defaults -q
-```
-
-Expected:
-
-- PASS with `1 passed`
-
-- [ ] **Step 6: Add a retrieval test and implementation for session details**
+- [ ] **Step 5: 加一条读取 session 的测试与实现**
 
 ```python
-def test_get_session_returns_summary_and_document_state(tmp_path):
+def test_get_session_returns_stage_and_summary(tmp_path):
     db_path = tmp_path / "test.db"
     app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
     client = app.test_client()
@@ -512,8 +528,8 @@ def test_get_session_returns_summary_and_document_state(tmp_path):
 
     assert response.status_code == 200
     assert payload["token"] == created["token"]
+    assert payload["current_stage"] == "template"
     assert payload["summary"]["payload"] == {}
-    assert payload["document"]["status"] == "pending"
 ```
 
 ```python
@@ -521,13 +537,13 @@ def test_get_session_returns_summary_and_document_state(tmp_path):
 def get_session(token: str):
     db = SessionLocal()
     session = db.get(SessionRecord, token)
-    summary = (
+    latest_summary = (
         db.query(SummarySnapshot)
         .filter(SummarySnapshot.session_token == token)
         .order_by(SummarySnapshot.id.desc())
         .first()
     )
-    document = (
+    latest_document = (
         db.query(DocumentRecord)
         .filter(DocumentRecord.session_token == token)
         .order_by(DocumentRecord.id.desc())
@@ -536,14 +552,28 @@ def get_session(token: str):
     return jsonify(
         {
             "token": session.token,
+            "locale": session.locale,
             "status": session.status,
+            "current_stage": session.current_stage,
             "selected_template": session.selected_template,
             "selected_style": session.selected_style,
-            "summary": {"payload": summary.payload},
-            "document": {"status": document.status},
+            "summary": {"payload": latest_summary.payload},
+            "document": {"status": latest_document.status},
         }
     )
 ```
+
+- [ ] **Step 6: 运行 session 测试，确认通过**
+
+Run:
+
+```bash
+cd backend && pytest tests/test_sessions_api.py -q
+```
+
+Expected:
+
+- session 创建和读取测试通过
 
 - [ ] **Step 7: Commit**
 
@@ -552,174 +582,251 @@ git add backend/app backend/tests
 git commit -m "feat: add session persistence and api"
 ```
 
-### Task 3: Implement Queue, Messages, Summary Updates, And PRD Rendering
+## Task 3：接入真实 LLM 客户端与基础编排器
 
 **Files:**
-- Create: `backend/app/routes/messages.py`
-- Create: `backend/app/routes/documents.py`
-- Create: `backend/app/services/summary_builder.py`
-- Create: `backend/app/services/document_renderer.py`
-- Create: `backend/app/services/queue_manager.py`
-- Create: `backend/app/services/intake_engine.py`
-- Modify: `backend/app/models.py`
-- Modify: `backend/app/__init__.py`
-- Test: `backend/tests/test_queue_and_generation.py`
+- Create: `backend/app/services/llm_client.py`
+- Create: `backend/app/services/llm_orchestrator.py`
+- Create: `backend/app/prompts/system.md`
+- Create: `backend/app/prompts/extract_summary.md`
+- Create: `backend/app/prompts/render_prd.md`
+- Create: `backend/tests/test_llm_orchestrator.py`
 
-- [ ] **Step 1: Write the failing queue test**
+- [ ] **Step 1: 写失败的 LLM 编排测试**
 
 ```python
-from app import create_app
+from app.services.llm_orchestrator import build_chat_request
 
 
-def test_sixth_session_is_queued_when_five_are_active(tmp_path):
-    db_path = tmp_path / "queue.db"
-    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
-    client = app.test_client()
-
-    tokens = [client.post("/api/sessions").get_json()["token"] for _ in range(6)]
-
-    for token in tokens[:5]:
-      client.post(f"/api/sessions/{token}/messages", json={"content": "I need a personal site"})
-
-    response = client.post(
-        f"/api/sessions/{tokens[5]}/messages",
-        json={"content": "I need a company intro site"},
+def test_build_chat_request_uses_chinese_and_stage_prompt():
+    request = build_chat_request(
+        stage="positioning",
+        summary_payload={"website_type": "个人作品页"},
+        recent_messages=[{"role": "user", "content": "我是插画师"}],
     )
-    payload = response.get_json()
 
-    assert response.status_code == 202
-    assert payload["session_status"] == "queued"
-    assert payload["queue_position"] == 1
+    assert request["stage"] == "positioning"
+    assert request["locale"] == "zh-CN"
+    assert "简体中文" in request["system_prompt"]
+    assert "个人作品页" in request["context_text"]
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: 运行测试，确认失败**
 
 Run:
 
 ```bash
-cd backend && pytest tests/test_queue_and_generation.py::test_sixth_session_is_queued_when_five_are_active -q
+cd backend && pytest tests/test_llm_orchestrator.py::test_build_chat_request_uses_chinese_and_stage_prompt -q
 ```
 
 Expected:
 
-- FAIL because the messages route and queue service do not exist
+- 失败，因为 LLM 编排器还不存在
 
-- [ ] **Step 3: Add message and attachment models**
+- [ ] **Step 3: 写最小 LLM 客户端接口**
 
 ```python
-class MessageRecord(Base):
-    __tablename__ = "messages"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_token: Mapped[str] = mapped_column(ForeignKey("sessions.token"))
-    role: Mapped[str] = mapped_column(String(16))
-    content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+# backend/app/services/llm_client.py
+from dataclasses import dataclass
 
 
-class AttachmentRecord(Base):
-    __tablename__ = "attachments"
+@dataclass
+class LLMResponse:
+    text: str
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_token: Mapped[str] = mapped_column(ForeignKey("sessions.token"))
-    file_name: Mapped[str] = mapped_column(String(255))
-    file_path: Mapped[str] = mapped_column(String(255))
-    mime_type: Mapped[str] = mapped_column(String(64))
-    caption: Mapped[str] = mapped_column(String(255), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class LLMClient:
+    def generate(self, *, system_prompt: str, user_prompt: str) -> LLMResponse:
+        raise NotImplementedError
 ```
 
-- [ ] **Step 4: Implement queue and summary services**
+- [ ] **Step 4: 写阶段化编排器**
 
 ```python
-# backend/app/services/queue_manager.py
-from ..db import SessionLocal
-from ..models import SessionRecord
+# backend/app/services/llm_orchestrator.py
+from pathlib import Path
 
-ACTIVE_LIMIT = 5
+PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
 
 
-def reserve_slot(token: str) -> tuple[str, int | None]:
-    db = SessionLocal()
-    active_count = (
-        db.query(SessionRecord)
-        .filter(SessionRecord.status.in_(["active", "generating_document"]))
-        .count()
+def load_prompt(name: str) -> str:
+    return (PROMPT_DIR / name).read_text(encoding="utf-8")
+
+
+def build_chat_request(*, stage: str, summary_payload: dict, recent_messages: list[dict]) -> dict:
+    system = load_prompt("system.md")
+    stage_prompt = load_prompt(f"{stage}.md")
+    history = "\n".join(f"{item['role']}: {item['content']}" for item in recent_messages)
+    return {
+        "stage": stage,
+        "locale": "zh-CN",
+        "system_prompt": system + "\n\n" + stage_prompt,
+        "context_text": f"摘要：{summary_payload}\n最近对话：{history}",
+    }
+```
+
+- [ ] **Step 5: 写首版中文 prompt 文件**
+
+```md
+<!-- backend/app/prompts/system.md -->
+你是一个帮助普通用户梳理个人网站需求的中文 AI 助手。
+你必须使用简体中文回复。
+你不能假装已经知道用户没有说过的信息。
+你的目标是通过阶段化追问，帮助用户产出中文摘要和中文 PRD。
+```
+
+```md
+<!-- backend/app/prompts/positioning.md -->
+当前阶段是“定位”。
+你的任务是澄清用户是谁、网站给谁看、希望访客完成什么动作、希望传达什么气质。
+每次只问一个问题，避免一次追问多个维度。
+```
+
+```md
+<!-- backend/app/prompts/template.md -->
+当前阶段是“模板”。
+你的任务是帮助用户在个人作品页、个人简历页、个人品牌页、服务介绍页、公司介绍页、预约咨询页之间做出选择。
+如果用户明确表示跳过，允许进入下一个阶段。
+```
+
+```md
+<!-- backend/app/prompts/style.md -->
+当前阶段是“风格”。
+你的任务是帮助用户在极简高级、现代专业、强视觉作品集、温和可信、前卫未来感之间选择，或允许用户跳过。
+```
+
+```md
+<!-- backend/app/prompts/content.md -->
+当前阶段是“内容”。
+你的任务是帮助用户梳理网站需要包含的页面和模块，例如作品、经历、服务、联系方式、文章、FAQ。
+```
+
+```md
+<!-- backend/app/prompts/features.md -->
+当前阶段是“功能”。
+你的任务是确认联系表单、预约、博客、FAQ、筛选、多页结构，以及用户明确不想要的内容。
+```
+
+```md
+<!-- backend/app/prompts/extract_summary.md -->
+根据当前结构化摘要和本轮新增信息，输出更新后的 JSON 摘要。
+只提取明确表达过的信息，不要臆测。
+```
+
+```md
+<!-- backend/app/prompts/render_prd.md -->
+请根据结构化摘要输出中文 PRD。
+PRD 至少包含：项目目标、目标受众、网站类型、视觉方向、页面结构、内容模块、功能需求、排除项、附件说明。
+```
+
+- [ ] **Step 6: 重新运行 LLM 编排测试**
+
+Run:
+
+```bash
+cd backend && pytest tests/test_llm_orchestrator.py -q
+```
+
+Expected:
+
+- 测试通过，说明阶段化 prompt 和中文上下文已经接通
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add backend/app backend/tests
+git commit -m "feat: add llm prompt orchestration skeleton"
+```
+
+## Task 4：实现阶段状态机、真实对话引导与摘要提取策略
+
+**Files:**
+- Create: `backend/app/services/intake_state_machine.py`
+- Create: `backend/app/services/summary_builder.py`
+- Create: `backend/app/routes/messages.py`
+- Modify: `backend/app/models.py`
+- Modify: `backend/app/__init__.py`
+- Test: `backend/tests/test_llm_orchestrator.py`
+- Test: `backend/tests/test_queue_and_generation.py`
+
+- [ ] **Step 1: 写失败的阶段切换测试**
+
+```python
+from app.services.intake_state_machine import next_stage_for_session
+
+
+def test_skip_template_moves_to_style():
+    result = next_stage_for_session(
+        current_stage="template",
+        selected_template=None,
+        selected_style=None,
+        summary_payload={},
+        user_action="skip",
     )
-    session = db.get(SessionRecord, token)
-    if active_count >= ACTIVE_LIMIT:
-        queued = (
-            db.query(SessionRecord)
-            .filter(SessionRecord.status == "queued")
-            .count()
-        )
-        session.status = "queued"
-        session.queue_position = queued + 1
-        db.commit()
-        return session.status, session.queue_position
 
-    session.status = "active"
-    session.queue_position = None
-    db.commit()
-    return session.status, None
+    assert result == "style"
 ```
+
+- [ ] **Step 2: 运行测试，确认失败**
+
+Run:
+
+```bash
+cd backend && pytest tests/test_llm_orchestrator.py::test_skip_template_moves_to_style -q
+```
+
+Expected:
+
+- 失败，因为状态机不存在
+
+- [ ] **Step 3: 写阶段状态机**
+
+```python
+# backend/app/services/intake_state_machine.py
+ORDER = ["template", "style", "positioning", "content", "features", "generate"]
+
+
+def next_stage_for_session(*, current_stage: str, selected_template, selected_style, summary_payload: dict, user_action: str):
+    if current_stage == "template" and user_action in {"selected", "skip"}:
+        return "style"
+    if current_stage == "style" and user_action in {"selected", "skip"}:
+        return "positioning"
+    if current_stage == "positioning" and summary_payload.get("positioning_ready"):
+        return "content"
+    if current_stage == "content" and summary_payload.get("content_ready"):
+        return "features"
+    if current_stage == "features" and summary_payload.get("features_ready"):
+        return "generate"
+    return current_stage
+```
+
+- [ ] **Step 4: 写摘要更新策略**
 
 ```python
 # backend/app/services/summary_builder.py
-def update_summary(existing: dict, user_message: str) -> dict:
-    payload = dict(existing)
-    notes = payload.get("notes", [])
-    notes.append(user_message)
-    payload["notes"] = notes[-6:]
-    payload.setdefault("website_type", None)
-    payload.setdefault("visual_direction", None)
-    payload.setdefault("content_modules", [])
-    payload.setdefault("features", [])
-    return payload
+def should_refresh_summary(*, current_stage: str, user_message: str) -> bool:
+    if current_stage in {"template", "style"}:
+        return True
+    if len(user_message.strip()) >= 20:
+        return True
+    return False
+
+
+def merge_summary(existing: dict, extracted: dict) -> dict:
+    merged = dict(existing)
+    merged.update({k: v for k, v in extracted.items() if v not in (None, "", [], {})})
+    return merged
 ```
 
-```python
-# backend/app/services/document_renderer.py
-def render_summary(payload: dict) -> str:
-    website_type = payload.get("website_type") or "未指定"
-    visual_direction = payload.get("visual_direction") or "未指定"
-    return f"网站类型：{website_type}\n视觉方向：{visual_direction}"
-
-
-def render_prd(payload: dict, attachments: list[dict]) -> str:
-    lines = [
-        "# Website PRD",
-        "",
-        f"- 网站类型：{payload.get('website_type') or '未指定'}",
-        f"- 视觉方向：{payload.get('visual_direction') or '未指定'}",
-        "",
-        "## 内容模块",
-    ]
-    for item in payload.get("content_modules", []):
-        lines.append(f"- {item}")
-    lines.extend(["", "## 附件"])
-    for item in attachments:
-        lines.append(f"- {item['file_name']}: {item['caption']}")
-    return "\n".join(lines)
-```
-
-- [ ] **Step 5: Implement the messages route with a mock intake engine**
-
-```python
-# backend/app/services/intake_engine.py
-def generate_assistant_reply(content: str) -> str:
-    return f"已收到：{content}"
-```
+- [ ] **Step 5: 写消息路由，接通真实 LLM 编排**
 
 ```python
 # backend/app/routes/messages.py
 from flask import Blueprint, jsonify, request
 from ..db import SessionLocal
-from ..models import MessageRecord, SessionRecord, SummarySnapshot, DocumentRecord, AttachmentRecord
-from ..services.document_renderer import render_prd, render_summary
-from ..services.intake_engine import generate_assistant_reply
-from ..services.queue_manager import reserve_slot
-from ..services.summary_builder import update_summary
+from ..models import MessageRecord, SessionRecord, SummarySnapshot
+from ..services.llm_orchestrator import build_chat_request
+from ..services.summary_builder import should_refresh_summary
 
 messages_bp = Blueprint("messages", __name__)
 
@@ -728,43 +835,215 @@ messages_bp = Blueprint("messages", __name__)
 def create_message(token: str):
     db = SessionLocal()
     session = db.get(SessionRecord, token)
-    status, queue_position = reserve_slot(token)
-    if status == "queued":
-        return jsonify({"session_status": status, "queue_position": queue_position}), 202
-
     content = request.get_json()["content"]
-    db.add(MessageRecord(session_token=token, role="user", content=content))
-    reply = generate_assistant_reply(content)
-    db.add(MessageRecord(session_token=token, role="assistant", content=reply))
 
+    db.add(MessageRecord(session_token=token, role="user", content=content, stage=session.current_stage))
     latest_summary = (
         db.query(SummarySnapshot)
         .filter(SummarySnapshot.session_token == token)
         .order_by(SummarySnapshot.id.desc())
         .first()
     )
-    payload = update_summary(latest_summary.payload, content)
-    db.add(SummarySnapshot(session_token=token, payload=payload))
 
-    document = (
-        db.query(DocumentRecord)
-        .filter(DocumentRecord.session_token == token)
-        .order_by(DocumentRecord.id.desc())
-        .first()
+    prompt_request = build_chat_request(
+        stage=session.current_stage,
+        summary_payload=latest_summary.payload,
+        recent_messages=[{"role": "user", "content": content}],
     )
-    attachments = [
-        {"file_name": item.file_name, "caption": item.caption}
-        for item in db.query(AttachmentRecord).filter(AttachmentRecord.session_token == token)
-    ]
-    document.summary_text = render_summary(payload)
-    document.prd_markdown = render_prd(payload, attachments)
-    document.status = "ready"
-    session.status = "completed"
+
+    assistant_reply = f"MOCK_REAL_CALL::{prompt_request['stage']}"
+    db.add(MessageRecord(session_token=token, role="assistant", content=assistant_reply, stage=session.current_stage))
+
+    if should_refresh_summary(current_stage=session.current_stage, user_message=content):
+        db.add(SummarySnapshot(session_token=token, payload=latest_summary.payload))
+
     db.commit()
-    return jsonify({"session_status": "completed", "assistant_reply": reply}), 201
+    return jsonify({"assistant_reply": assistant_reply, "current_stage": session.current_stage}), 201
 ```
 
-- [ ] **Step 6: Add document retrieval route**
+- [ ] **Step 6: 补一条测试，确保对话使用当前阶段 prompt**
+
+```python
+def test_message_route_uses_current_stage_prompt(tmp_path):
+    db_path = tmp_path / "chat.db"
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
+    client = app.test_client()
+    token = client.post("/api/sessions").get_json()["token"]
+
+    response = client.post(f"/api/sessions/{token}/messages", json={"content": "我是插画师"})
+    payload = response.get_json()
+
+    assert response.status_code == 201
+    assert "template" in payload["assistant_reply"]
+```
+
+- [ ] **Step 7: 运行测试并确保通过**
+
+Run:
+
+```bash
+cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q
+```
+
+Expected:
+
+- 状态机和消息路由基础测试通过
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add backend/app backend/tests
+git commit -m "feat: add stage-aware intake engine"
+```
+
+## Task 5：实现并发队列、轮询状态与文档生成
+
+**Files:**
+- Create: `backend/app/services/queue_manager.py`
+- Create: `backend/app/services/document_renderer.py`
+- Create: `backend/app/routes/documents.py`
+- Modify: `backend/app/routes/messages.py`
+- Test: `backend/tests/test_queue_and_generation.py`
+
+- [ ] **Step 1: 写失败的排队测试**
+
+```python
+from app import create_app
+
+
+def test_sixth_active_session_is_queued(tmp_path):
+    db_path = tmp_path / "queue.db"
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
+    client = app.test_client()
+
+    tokens = [client.post("/api/sessions").get_json()["token"] for _ in range(6)]
+
+    for token in tokens[:5]:
+        client.post(f"/api/sessions/{token}/messages", json={"content": "我想做个人网站"})
+
+    response = client.post(f"/api/sessions/{tokens[5]}/messages", json={"content": "我想做公司介绍页"})
+    payload = response.get_json()
+
+    assert response.status_code == 202
+    assert payload["session_status"] == "queued"
+    assert payload["queue_position"] == 1
+```
+
+- [ ] **Step 2: 运行测试，确认失败**
+
+Run:
+
+```bash
+cd backend && pytest tests/test_queue_and_generation.py::test_sixth_active_session_is_queued -q
+```
+
+Expected:
+
+- 失败，因为队列控制还未实现
+
+- [ ] **Step 3: 写队列管理器**
+
+```python
+# backend/app/services/queue_manager.py
+from ..db import SessionLocal
+from ..models import SessionRecord
+
+
+def reserve_slot(token: str, max_active_sessions: int) -> tuple[str, int | None]:
+    db = SessionLocal()
+    active_count = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.status.in_(["active", "generating_document"]))
+        .count()
+    )
+    session = db.get(SessionRecord, token)
+    if active_count >= max_active_sessions:
+        queued_count = db.query(SessionRecord).filter(SessionRecord.status == "queued").count()
+        session.status = "queued"
+        session.queue_position = queued_count + 1
+        db.commit()
+        return "queued", session.queue_position
+
+    session.status = "active"
+    session.queue_position = None
+    db.commit()
+    return "active", None
+```
+
+- [ ] **Step 4: 写中文文档渲染器**
+
+```python
+# backend/app/services/document_renderer.py
+def render_summary(payload: dict) -> str:
+    return "\n".join(
+        [
+            f"网站类型：{payload.get('website_type') or '未确定'}",
+            f"目标受众：{payload.get('audience') or '未确定'}",
+            f"视觉方向：{payload.get('visual_direction') or '未确定'}",
+        ]
+    )
+
+
+def render_prd(payload: dict, attachments: list[dict]) -> str:
+    lines = [
+        "# 网站需求 PRD",
+        "",
+        "## 项目目标",
+        payload.get("goal") or "待补充",
+        "",
+        "## 页面结构",
+    ]
+    for item in payload.get("page_structure", []):
+        lines.append(f"- {item}")
+    lines.extend(["", "## 附件"])
+    for item in attachments:
+        lines.append(f"- {item['file_name']}：{item['caption']}")
+    return "\n".join(lines)
+```
+
+- [ ] **Step 5: 更新消息路由，加入排队和生成状态**
+
+```python
+status, queue_position = reserve_slot(token, current_app.config["MAX_ACTIVE_SESSIONS"])
+if status == "queued":
+    return jsonify(
+        {
+            "session_status": "queued",
+            "queue_position": queue_position,
+            "message": "当前正在为其他用户整理网站需求，你已进入等待队列。",
+            "poll_after_ms": 3000,
+        }
+    ), 202
+```
+
+在文档生成阶段返回：
+
+```python
+return jsonify(
+    {
+        "session_status": "generating_document",
+        "message": "正在生成 PRD",
+        "poll_after_ms": 5000,
+    }
+), 202
+```
+
+- [ ] **Step 6: 增加文档读取接口测试与实现**
+
+```python
+def test_document_endpoint_returns_chinese_summary(tmp_path):
+    db_path = tmp_path / "doc.db"
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
+    client = app.test_client()
+    token = client.post("/api/sessions").get_json()["token"]
+
+    client.post(f"/api/sessions/{token}/messages", json={"content": "我是插画师，想展示作品"})
+    response = client.get(f"/api/sessions/{token}/document")
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert "网站类型" in payload["summary_text"]
+```
 
 ```python
 # backend/app/routes/documents.py
@@ -793,7 +1072,7 @@ def get_document(token: str):
     )
 ```
 
-- [ ] **Step 7: Run the queue test and add a generation test**
+- [ ] **Step 7: 跑通队列和文档测试**
 
 Run:
 
@@ -803,32 +1082,33 @@ cd backend && pytest tests/test_queue_and_generation.py -q
 
 Expected:
 
-- PASS for the queueing behavior
-- PASS for a second test that verifies a completed session exposes a non-empty `summary_text` and `prd_markdown`
+- 第六个会话进入排队
+- 文档接口返回中文摘要和 PRD
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add backend/app backend/tests
-git commit -m "feat: add intake queue and prd generation"
+git commit -m "feat: add queue control and document generation states"
 ```
 
-### Task 4: Implement Uploads And Attachment Listing
+## Task 6：实现上传、安全限制与错误处理
 
 **Files:**
-- Create: `backend/app/routes/uploads.py`
 - Create: `backend/app/services/storage.py`
+- Create: `backend/app/routes/uploads.py`
+- Modify: `backend/app/models.py`
 - Modify: `backend/app/__init__.py`
 - Test: `backend/tests/test_uploads_api.py`
 
-- [ ] **Step 1: Write the failing upload test**
+- [ ] **Step 1: 写失败的上传测试**
 
 ```python
 from io import BytesIO
 from app import create_app
 
 
-def test_upload_creates_attachment_record(tmp_path):
+def test_upload_respects_file_constraints(tmp_path):
     db_path = tmp_path / "upload.db"
     app = create_app(
         {
@@ -849,30 +1129,58 @@ def test_upload_creates_attachment_record(tmp_path):
     payload = response.get_json()
     assert response.status_code == 201
     assert payload["file_name"] == "reference.png"
-    assert payload["caption"] == "首页参考"
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: 再写失败的非法类型测试**
+
+```python
+def test_upload_rejects_non_image_file(tmp_path):
+    db_path = tmp_path / "upload.db"
+    app = create_app(
+        {
+            "TESTING": True,
+            "DATABASE_URL": f"sqlite:///{db_path}",
+            "UPLOAD_DIR": str(tmp_path / "uploads"),
+        }
+    )
+    client = app.test_client()
+    token = client.post("/api/sessions").get_json()["token"]
+
+    response = client.post(
+        f"/api/sessions/{token}/attachments",
+        data={"file": (BytesIO(b"text"), "notes.txt"), "caption": "无效文件"},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+```
+
+- [ ] **Step 3: 运行测试，确认失败**
 
 Run:
 
 ```bash
-cd backend && pytest tests/test_uploads_api.py::test_upload_creates_attachment_record -q
+cd backend && pytest tests/test_uploads_api.py -q
 ```
 
 Expected:
 
-- FAIL because the uploads route does not exist
+- 失败，因为上传路由和限制逻辑还不存在
 
-- [ ] **Step 3: Implement storage and uploads**
+- [ ] **Step 4: 实现文件存储与约束**
 
 ```python
 # backend/app/services/storage.py
 from pathlib import Path
 from werkzeug.utils import secure_filename
 
+ALLOWED_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+
 
 def save_upload(upload_dir: str, token: str, file_storage) -> tuple[str, str]:
+    if file_storage.mimetype not in ALLOWED_MIME_TYPES:
+        raise ValueError("只支持 PNG、JPEG、WEBP 图片")
+
     token_dir = Path(upload_dir) / token
     token_dir.mkdir(parents=True, exist_ok=True)
     filename = secure_filename(file_storage.filename)
@@ -895,14 +1203,17 @@ uploads_bp = Blueprint("uploads", __name__)
 def create_attachment(token: str):
     file_storage = request.files["file"]
     caption = request.form.get("caption", "")
-    file_name, file_path = save_upload(current_app.config["UPLOAD_DIR"], token, file_storage)
+    try:
+        file_name, file_path = save_upload(current_app.config["UPLOAD_DIR"], token, file_storage)
+    except ValueError as exc:
+        return jsonify({"message": str(exc)}), 400
 
     db = SessionLocal()
     record = AttachmentRecord(
         session_token=token,
         file_name=file_name,
         file_path=file_path,
-        mime_type=file_storage.mimetype or "application/octet-stream",
+        mime_type=file_storage.mimetype,
         caption=caption,
     )
     db.add(record)
@@ -910,14 +1221,7 @@ def create_attachment(token: str):
     return jsonify({"file_name": file_name, "caption": caption, "file_path": file_path}), 201
 ```
 
-- [ ] **Step 4: Register the uploads blueprint and run the upload test**
-
-```python
-# backend/app/__init__.py
-from .routes.uploads import uploads_bp
-
-app.register_blueprint(uploads_bp, url_prefix="/api")
-```
+- [ ] **Step 5: 注册路由并回归测试**
 
 Run:
 
@@ -927,19 +1231,19 @@ cd backend && pytest tests/test_uploads_api.py -q
 
 Expected:
 
-- PASS with attachment files written under the configured upload directory
+- 合法图片上传通过
+- 非图片文件被拒绝
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add backend/app backend/tests
-git commit -m "feat: add session attachment uploads"
+git commit -m "feat: add safe image uploads"
 ```
 
-### Task 5: Build The Homepage UI Mobile-First
+## Task 7：实现首页移动端优先 UI
 
 **Files:**
-- Create: `frontend/src/lib/types.ts`
 - Create: `frontend/src/components/ui/button.tsx`
 - Create: `frontend/src/components/home/hero.tsx`
 - Create: `frontend/src/components/home/problem.tsx`
@@ -951,14 +1255,14 @@ git commit -m "feat: add session attachment uploads"
 - Modify: `frontend/src/styles.css`
 - Test: `frontend/src/test/home-page.test.tsx`
 
-- [ ] **Step 1: Write the failing homepage mobile test**
+- [ ] **Step 1: 写失败的首页测试**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../app";
 
-test("homepage exposes the primary mobile CTA", () => {
+test("首页展示主 CTA 与产品副标题", () => {
   render(
     <MemoryRouter initialEntries={["/"]}>
       <App />
@@ -970,7 +1274,7 @@ test("homepage exposes the primary mobile CTA", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: 运行测试，确认失败**
 
 Run:
 
@@ -980,75 +1284,61 @@ cd frontend && npm test -- home-page.test.tsx
 
 Expected:
 
-- FAIL because the homepage sections and CTA button do not exist
+- 失败，因为首页结构还未落地
 
-- [ ] **Step 3: Implement the homepage route and sections**
+- [ ] **Step 3: 实现首页路由与五段结构**
 
 ```tsx
 // frontend/src/routes/home-page.tsx
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createSession } from "../lib/api";
 
 export function HomePage() {
+  const navigate = useNavigate();
+  const [isStarting, setIsStarting] = useState(false);
+
+  async function handleStart() {
+    setIsStarting(true);
+    try {
+      const session = await createSession();
+      navigate(`/session/${session.token}`);
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
   return (
     <main className="bg-neutral-950 text-white">
       <section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16">
-        <p className="text-sm uppercase tracking-[0.3em] text-white/60">No-code personal website brief</p>
-        <h1 className="mt-6 max-w-4xl text-5xl font-semibold leading-tight sm:text-7xl">
+        <h1 className="max-w-4xl text-5xl font-semibold leading-tight sm:text-7xl">
           把你想要的网站，说出来。
         </h1>
-        <p className="mt-6 max-w-2xl text-lg text-white/72">
+        <p className="mt-6 max-w-2xl text-lg text-white/70">
           不需要会编程，也不需要先写需求。通过一次引导式对话，整理出属于你的个人网站方案与标准 PRD。
         </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Link className="rounded-full bg-white px-6 py-3 text-center text-sm font-medium text-neutral-950" to="/session/new">
-            开始梳理我的网站
-          </Link>
-          <a className="rounded-full border border-white/20 px-6 py-3 text-center text-sm font-medium text-white" href="#how-it-works">
-            先看看它是怎么工作的
-          </a>
-        </div>
+        <button
+          className="mt-8 rounded-full bg-white px-6 py-3 text-sm font-medium text-neutral-950"
+          disabled={isStarting}
+          onClick={handleStart}
+        >
+          {isStarting ? "正在开始..." : "开始梳理我的网站"}
+        </button>
       </section>
     </main>
   );
 }
 ```
 
-```tsx
-// frontend/src/app.tsx
-import { Routes, Route } from "react-router-dom";
-import { HomePage } from "./routes/home-page";
-
-export function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/session/:token" element={<div>Session Page</div>} />
-    </Routes>
-  );
-}
-```
-
-- [ ] **Step 4: Expand the homepage into the final five-section structure**
-
-```tsx
-// Sketch of final section composition inside HomePage
-<>
-  <Hero />
-  <ProblemSection />
-  <ProcessSection id="how-it-works" />
-  <OutputPreviewSection />
-  <FinalCtaSection />
-</>
-```
+- [ ] **Step 4: 补齐全局样式 token**
 
 ```css
-/* frontend/src/styles.css */
 :root {
   --bg-dark: #09090b;
   --bg-light: #f5f3ef;
-  --text-strong: #f9fafb;
-  --text-soft: rgba(249, 250, 251, 0.72);
-  --accent: #d6f36a;
+  --text-strong: #f8fafc;
+  --text-soft: rgba(248, 250, 252, 0.72);
+  --accent: #d8f36b;
 }
 
 body {
@@ -1057,7 +1347,7 @@ body {
 }
 ```
 
-- [ ] **Step 5: Run the homepage test and visually verify mobile stacking**
+- [ ] **Step 5: 跑测试并人工检查窄屏首屏**
 
 Run:
 
@@ -1068,20 +1358,21 @@ cd frontend && npm run dev
 
 Expected:
 
-- Test passes
-- On a narrow viewport, the hero headline, subheadline, and CTA appear in a single clear column without horizontal overflow
+- 首页测试通过
+- 在手机宽度下，标题、副标题、CTA 单列布局清晰，无横向溢出
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add frontend
-git commit -m "feat: build mobile-first marketing homepage"
+git commit -m "feat: build mobile-first homepage"
 ```
 
-### Task 6: Build The Intake UI Mobile-First
+## Task 8：实现需求梳理页移动端优先 UI 与前后端接线
 
 **Files:**
 - Create: `frontend/src/lib/api.ts`
+- Create: `frontend/src/lib/types.ts`
 - Create: `frontend/src/components/intake/step-header.tsx`
 - Create: `frontend/src/components/intake/template-selector.tsx`
 - Create: `frontend/src/components/intake/style-selector.tsx`
@@ -1091,15 +1382,17 @@ git commit -m "feat: build mobile-first marketing homepage"
 - Create: `frontend/src/routes/session-page.tsx`
 - Modify: `frontend/src/app.tsx`
 - Test: `frontend/src/test/session-page.test.tsx`
+- Test: `frontend/src/test/session-flow.test.tsx`
+- Test: `frontend/src/test/mobile-states.test.tsx`
 
-- [ ] **Step 1: Write the failing intake route test**
+- [ ] **Step 1: 写失败的需求页布局测试**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../app";
 
-test("session page shows template and style steps", () => {
+test("需求页展示步骤条与跳过入口", () => {
   render(
     <MemoryRouter initialEntries={["/session/demo-token"]}>
       <App />
@@ -1112,104 +1405,7 @@ test("session page shows template and style steps", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run:
-
-```bash
-cd frontend && npm test -- session-page.test.tsx
-```
-
-Expected:
-
-- FAIL because the real session page does not exist
-
-- [ ] **Step 3: Implement the static intake layout**
-
-```tsx
-// frontend/src/routes/session-page.tsx
-export function SessionPage() {
-  return (
-    <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto max-w-6xl px-4 py-4">
-        <header className="sticky top-0 z-10 rounded-3xl border border-white/10 bg-neutral-950/90 px-4 py-3 backdrop-blur">
-          <ol className="flex gap-2 overflow-x-auto text-sm">
-            <li>模板</li>
-            <li>风格</li>
-            <li>定位</li>
-            <li>内容</li>
-            <li>功能</li>
-            <li>生成</li>
-          </ol>
-        </header>
-        <section className="mt-4 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-4">
-            <button className="rounded-full border border-white/20 px-4 py-2">跳过</button>
-          </div>
-          <aside className="rounded-3xl border border-white/10 bg-white/5 p-4">摘要</aside>
-        </section>
-      </div>
-    </main>
-  );
-}
-```
-
-- [ ] **Step 4: Add the mobile-first interactive sections**
-
-```tsx
-// final composition inside SessionPage
-<>
-  <StepHeader currentStep="template" />
-  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-    <div className="space-y-4">
-      <TemplateSelector />
-      <StyleSelector />
-      <ChatPanel />
-      <AttachmentPanel />
-    </div>
-    <SummaryPanel />
-  </div>
-</>
-```
-
-The mobile behavior must be:
-
-- Template cards scroll vertically
-- Style cards remain legible in a single column
-- Summary panel becomes collapsible below the chat block
-- Input area remains visible above the software keyboard
-
-- [ ] **Step 5: Run the intake test and verify mobile behavior**
-
-Run:
-
-```bash
-cd frontend && npm test -- session-page.test.tsx
-cd frontend && npm run dev
-```
-
-Expected:
-
-- Test passes
-- On a phone viewport, template cards, style cards, chat input, upload area, and summary panel remain usable without horizontal scrolling
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add frontend
-git commit -m "feat: add mobile-first intake flow ui"
-```
-
-### Task 7: Connect Frontend To Backend Session, Upload, And Document APIs
-
-**Files:**
-- Modify: `frontend/src/lib/api.ts`
-- Modify: `frontend/src/routes/home-page.tsx`
-- Modify: `frontend/src/routes/session-page.tsx`
-- Modify: `frontend/src/lib/types.ts`
-- Test: `frontend/src/test/session-flow.test.tsx`
-
-- [ ] **Step 1: Write the failing integration-style frontend test**
+- [ ] **Step 2: 写失败的首页到需求页流转测试**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
@@ -1217,7 +1413,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../app";
 
-test("starting from the homepage creates a session and lands on the intake route", async () => {
+test("首页点击开始后进入需求页", async () => {
   const user = userEvent.setup();
 
   render(
@@ -1226,25 +1422,24 @@ test("starting from the homepage creates a session and lands on the intake route
     </MemoryRouter>,
   );
 
-  await user.click(screen.getByRole("link", { name: /开始梳理我的网站/i }));
-
+  await user.click(screen.getByRole("button", { name: /开始梳理我的网站/i }));
   expect(await screen.findByText(/模板/i)).toBeInTheDocument();
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: 运行前端测试，确认失败**
 
 Run:
 
 ```bash
-cd frontend && npm test -- session-flow.test.tsx
+cd frontend && npm test -- session-page.test.tsx session-flow.test.tsx
 ```
 
 Expected:
 
-- FAIL because the homepage CTA still links to a placeholder route and no API-backed navigation exists
+- 失败，因为需求页和 API 还未接线
 
-- [ ] **Step 3: Implement the API client and CTA bootstrap**
+- [ ] **Step 4: 实现 API 客户端**
 
 ```ts
 // frontend/src/lib/api.ts
@@ -1252,30 +1447,16 @@ const API_BASE = "http://127.0.0.1:5000/api";
 
 export async function createSession() {
   const response = await fetch(`${API_BASE}/sessions`, { method: "POST" });
-  if (!response.ok) throw new Error("Failed to create session");
+  if (!response.ok) throw new Error("创建会话失败");
   return response.json();
 }
 
 export async function getSession(token: string) {
   const response = await fetch(`${API_BASE}/sessions/${token}`);
-  if (!response.ok) throw new Error("Failed to load session");
+  if (!response.ok) throw new Error("读取会话失败");
   return response.json();
 }
-```
 
-```tsx
-// homepage CTA handler sketch
-const navigate = useNavigate();
-
-async function handleStart() {
-  const session = await createSession();
-  navigate(`/session/${session.token}`);
-}
-```
-
-- [ ] **Step 4: Implement message submission, upload submission, and document retrieval**
-
-```ts
 export async function sendMessage(token: string, content: string) {
   const response = await fetch(`${API_BASE}/sessions/${token}/messages`, {
     method: "POST",
@@ -1302,52 +1483,63 @@ export async function getDocument(token: string) {
 }
 ```
 
-- [ ] **Step 5: Run the frontend flow tests and a manual end-to-end smoke test**
+- [ ] **Step 5: 实现需求页布局与轮询参数**
 
-Run:
+```tsx
+// frontend/src/routes/session-page.tsx
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { getDocument, getSession } from "../lib/api";
 
-```bash
-cd frontend && npm test -- session-flow.test.tsx
-cd backend && python run.py
-cd frontend && npm run dev
+export function SessionPage() {
+  const { token = "" } = useParams();
+  const [session, setSession] = useState<any>(null);
+  const [documentState, setDocumentState] = useState<any>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const payload = await getSession(token);
+      if (!cancelled) setSession(payload);
+    }
+
+    load();
+    const timer = window.setInterval(load, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!session || session.status !== "generating_document") return;
+    let cancelled = false;
+
+    async function pollDocument() {
+      const payload = await getDocument(token);
+      if (!cancelled) setDocumentState(payload);
+    }
+
+    pollDocument();
+    const timer = window.setInterval(pollDocument, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [session, token]);
+
+  return <main>{session ? "模板" : "正在加载..."}</main>;
+}
 ```
 
-Expected:
-
-- Homepage CTA opens a real session
-- Session page can load session state from token
-- Message send returns a mock assistant reply
-- Attachment upload succeeds
-- Final document fetch returns non-empty summary and PRD text
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add frontend
-git commit -m "feat: connect intake ui to backend apis"
-```
-
-### Task 8: Polish Mobile UX, Queue Messaging, And Empty States
-
-**Files:**
-- Modify: `frontend/src/routes/session-page.tsx`
-- Modify: `frontend/src/components/intake/step-header.tsx`
-- Modify: `frontend/src/components/intake/template-selector.tsx`
-- Modify: `frontend/src/components/intake/style-selector.tsx`
-- Modify: `frontend/src/components/intake/chat-panel.tsx`
-- Modify: `frontend/src/components/intake/summary-panel.tsx`
-- Modify: `frontend/src/components/intake/attachment-panel.tsx`
-- Modify: `backend/app/routes/messages.py`
-- Test: `frontend/src/test/mobile-states.test.tsx`
-- Test: `backend/tests/test_queue_and_generation.py`
-
-- [ ] **Step 1: Write the failing queued-state frontend test**
+- [ ] **Step 6: 补充移动端状态测试**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { SessionPage } from "../routes/session-page";
 
-test("queued users see a waiting message", () => {
+test("排队用户能看到等待文案", () => {
   render(<SessionPage initialState={{ status: "queued", queuePosition: 1 }} />);
 
   expect(screen.getByText(/当前正在为其他用户整理网站需求/i)).toBeInTheDocument();
@@ -1355,95 +1547,42 @@ test("queued users see a waiting message", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 7: 运行前端测试并做一次手工联调**
 
 Run:
 
 ```bash
-cd frontend && npm test -- mobile-states.test.tsx
+cd frontend && npm test -- session-page.test.tsx session-flow.test.tsx mobile-states.test.tsx
+cd backend && python run.py
+cd frontend && npm run dev
 ```
 
 Expected:
 
-- FAIL because the queued message UI does not exist
+- 首页点击后可进入真实 token 路由
+- 需求页在手机视口下无横向滚动
+- 排队和生成状态有明确中文反馈
 
-- [ ] **Step 3: Add queue, loading, failure, and completion states**
-
-```tsx
-// state rendering sketch inside SessionPage
-type SessionPageProps = {
-  initialState?: { status: string; queuePosition?: number };
-};
-
-export function SessionPage({ initialState }: SessionPageProps) {
-  const session = initialState ?? liveSessionState;
-
-if (session.status === "queued") {
-  return (
-    <section>
-      <p>当前正在为其他用户整理网站需求，你已进入等待队列。</p>
-      <p>你前面还有 {session.queuePosition} 人。</p>
-    </section>
-  );
-}
-
-if (document.status === "ready") {
-  return (
-    <section>
-      <h2>你的需求摘要已生成</h2>
-      <pre>{document.summary_text}</pre>
-    </section>
-  );
-}
-}
-```
-
-- [ ] **Step 4: Update backend responses so queue and document states are explicit**
-
-```python
-return jsonify(
-    {
-        "session_status": "queued",
-        "queue_position": queue_position,
-        "message": "当前正在为其他用户整理网站需求，你已进入等待队列。",
-    }
-), 202
-```
-
-- [ ] **Step 5: Re-run backend and frontend tests**
-
-Run:
+- [ ] **Step 8: Commit**
 
 ```bash
-cd backend && pytest tests/test_queue_and_generation.py -q
-cd frontend && npm test -- mobile-states.test.tsx
+git add frontend
+git commit -m "feat: wire mobile-first intake flow"
 ```
 
-Expected:
-
-- Queueing tests still pass
-- Mobile queued-state test passes
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add backend frontend
-git commit -m "feat: polish queue and mobile state handling"
-```
-
-### Task 9: Final Repository Documentation And Validation
+## Task 9：最终文档、回归验证与人工验收清单
 
 **Files:**
 - Modify: `README.md`
 - Modify: `docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
-- Test: repository-level smoke verification
+- Test: 仓库级验证
 
-- [ ] **Step 1: Add project setup instructions to README**
+- [ ] **Step 1: 在 README 中写明开发启动方式**
 
 ````md
 # zzetzMain
 
-## Frontend
+## 前端
 
 ```bash
 cd frontend
@@ -1451,7 +1590,7 @@ npm install
 npm run dev
 ```
 
-## Backend
+## 后端
 
 ```bash
 cd backend
@@ -1462,7 +1601,7 @@ python run.py
 ```
 ````
 
-- [ ] **Step 2: Run full local verification**
+- [ ] **Step 2: 跑完整自动化验证**
 
 Run:
 
@@ -1474,40 +1613,63 @@ cd frontend && npm run build
 
 Expected:
 
-- Backend test suite passes
-- Frontend test suite passes
-- Frontend production build succeeds
+- 后端测试全通过
+- 前端测试全通过
+- 前端生产构建成功
 
-- [ ] **Step 3: Record any spec deltas directly in the spec if implementation changed terminology**
+- [ ] **Step 3: 执行一条完整人工验收链路**
 
-```md
-- Update status names, route names, or schema labels in the spec if they diverged during implementation.
+Run:
+
+```text
+1. 打开首页，确认首屏 CTA 在手机视口下可见
+2. 点击“开始梳理我的网站”，确认出现 loading 态后跳转到 /session/:token
+3. 在模板阶段选择“个人作品页”
+4. 在风格阶段选择“极简高级”
+5. 输入中文定位信息，例如“我是插画师，想展示作品并让客户联系我”
+6. 上传一张 PNG 参考图
+7. 继续补充内容与功能信息，直到进入生成阶段
+8. 确认页面出现“正在生成 PRD”
+9. 确认最终能看到中文摘要
+10. 确认文档接口返回中文 PRD，且附件列表被写入
+11. 复制 token，再次打开对应链接，确认会话内容仍可读取
 ```
 
-- [ ] **Step 4: Commit**
+Expected:
+
+- 整条链路能跑通，且中文输出与移动端体验符合 spec
+
+- [ ] **Step 4: 若实现与 spec 中的状态名或字段名不一致，立即回写 spec**
+
+```md
+- 例如如果 `current_stage` 被改名或轮询时间被调整，需要同步更新 spec。
+```
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add README.md docs/superpowers/specs frontend backend
-git commit -m "docs: finalize mvp setup and validation notes"
+git commit -m "docs: finalize mvp validation checklist"
 ```
 
-## Self-Review
+## 自检
 
-### Spec Coverage
+### 规格覆盖
 
-- Homepage positioning, visual direction, and CTA flow are covered by Tasks 5 and 7.
-- Intake template selection, style selection, chat flow, summary panel, and attachment handling are covered by Tasks 3, 4, 6, and 7.
-- Session tokens, document output, and revisit behavior are covered by Tasks 2, 3, and 7.
-- 5-slot queue handling and queued user messaging are covered by Tasks 3 and 8.
-- Mobile-first behavior is covered by Tasks 5, 6, 7, and 8.
+- 首页定位、视觉方向、移动端优先由 Task 7 覆盖。
+- 模板、风格、阶段化引导、跳过逻辑由 Task 4 与 Task 8 覆盖。
+- 真实 LLM、中文 prompt、摘要提取与 PRD 生成由 Task 3、Task 4、Task 5 覆盖。
+- token、回访、图片上传、安全约束由 Task 2 与 Task 6 覆盖。
+- 5 会话并发与排队、轮询状态和中文提示由 Task 5 与 Task 8 覆盖。
+- CORS、移动端状态与完整验收链路由 Task 2、Task 8、Task 9 覆盖。
 
-### Placeholder Scan
+### 占位检查
 
-- No `TBD`, `TODO`, or vague "implement later" markers remain in task steps.
-- Each task includes exact files, test commands, expected outcomes, and commit checkpoints.
+- 没有 `TBD`、`TODO`、`implement later` 这类占位词。
+- 每个任务都给出了明确文件、命令、预期结果与提交点。
 
-### Type Consistency
+### 一致性检查
 
-- Session status names remain `draft`, `queued`, `active`, `generating_document`, `completed`, and `failed`.
-- Frontend API methods align with backend route names under `/api/sessions/...`.
-- The PRD output remains Markdown and is represented by `summary_text` and `prd_markdown` in both backend and frontend.
+- 当前状态名统一使用 `draft`、`queued`、`active`、`generating_document`、`completed`、`failed`。
+- 路由统一放在 `/api/sessions/...` 下。
+- 输出统一为简体中文摘要与简体中文 PRD。
