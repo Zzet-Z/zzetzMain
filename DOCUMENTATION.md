@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 2 — 会话模型与基础 API
-- Current task: Task 2 — 建立会话持久化模型与基础 Session API
-- Status: Task 1 completed, Task 2 ready to start
+- Current milestone: Milestone 3 — LLM 客户端与 Prompt 编排
+- Current task: Task 3 — 接入真实 LLM 客户端与 Prompt 编排
+- Status: Task 2 completed, Task 3 ready to start
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,6 @@
 - （无）
 
 ### Not started
-- Milestone 2: 会话模型与基础 API（Task 2）
 - Milestone 3: LLM 客户端与 Prompt 编排（Task 3）
 - Milestone 4: 阶段状态机与对话引导（Task 4）
 - Milestone 5: 并发队列与文档生成（Task 5）
@@ -36,6 +35,50 @@
 ---
 
 ## Task log
+
+### [2026-04-08] Task 2: 建立会话模型、数据库与基础 API
+**Summary**
+- 新建 SQLAlchemy 数据层：`db.py`、`models.py`、`schemas.py`
+- 新增 `POST /api/sessions`、`GET /api/sessions/<token>`、`PATCH /api/sessions/<token>`
+- app 工厂接入 SQLite 初始化、CORS 与 `SessionLocal.remove()` teardown
+- 建立会话默认状态：`draft`、`template`、`zh-CN`，并在创建时自动生成空摘要与待生成文档记录
+
+**Files changed**
+- `backend/app/__init__.py`
+- `backend/app/db.py`
+- `backend/app/models.py`
+- `backend/app/schemas.py`
+- `backend/app/routes/sessions.py`
+- `backend/tests/test_sessions_api.py`
+
+**Validation run**
+- 红灯确认：
+  - `cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_default_state -q`
+  - `cd backend && pytest tests/test_sessions_api.py -q`
+- 绿灯验证：
+  - `cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_default_state -q`
+  - `cd backend && pytest tests/test_sessions_api.py -q`
+  - `cd backend && pytest -q`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 初始 `POST /api/sessions` 返回 404
+  - 补完 create 之后，`GET/PATCH` 与中文 404 仍按预期失败
+- 绿灯阶段全部通过：
+  - session 创建、读取、更新、无效跳转、失效 token、CORS 头测试通过
+  - 后端当前全量测试通过（7 passed）
+
+**Notes**
+- 为避免建表漏表，`create_app` 在 `init_db` 前显式导入模型模块
+- `schemas.py` 目前只承担最小序列化职责，后续 Task 3/4 继续复用即可
+- 阶段跳转白名单已按 plan 落地，但暂不支持回退阶段
+
+**Known issues**
+- `SESSION_CONTEXT.md` 的“最近重要提交”会在下一次任务收尾时补录本次 Task 2 提交 hash，原因同 Task 1
+
+**Next suggested step**
+- 执行 Milestone 3 / Task 3：真实 LLM 客户端、prompt 文件与 orchestrator
+- 先补 `backend/tests/test_llm_orchestrator.py` 的红灯测试，再创建 prompt 文件与 httpx 客户端
 
 ### [2026-04-08] Task 1: 搭建前后端脚手架与最小运行面
 **Summary**
@@ -159,6 +202,7 @@
 ## Verification history
 | Date | Scope | Commands | Result | Notes |
 |------|-------|----------|--------|-------|
+| 2026-04-08 | Task 2 red/green | `cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_default_state -q`; `cd backend && pytest tests/test_sessions_api.py -q`; `cd backend && pytest -q` | Passed | 先确认 `/api/sessions` 缺失，再补齐 create/get/patch 与 CORS |
 | 2026-04-08 | Task 1 red/green | `cd backend && pytest tests/test_health.py -q`; `cd frontend && npm test -- app-shell.test.tsx`; `cd backend && pytest -q`; `cd frontend && npm run build` | Passed | 红灯先确认缺失应用工厂与前端壳，随后绿灯通过 |
 | 2026-04-08 | 规则初始化 | N/A | N/A | 无代码，无需验证 |
 
@@ -167,8 +211,8 @@
 ## Handoff notes
 给下一个执行者的说明：
 
-- 当前最应该继续的任务：**Milestone 2 / Task 2 — 建立会话持久化模型与基础 Session API**
-- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 2 部分
+- 当前最应该继续的任务：**Milestone 3 / Task 3 — 接入真实 LLM 客户端与 Prompt 编排**
+- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 3 部分
 - 不要动的区域：`docs/superpowers/` 下的 spec 和 plan 文件
-- 当前最大风险：Task 2 起会进入数据库模型与路由层，容易超出文件边界，需要按 plan 严格收敛
-- 推荐先跑的验证命令：Task 2 的红灯从 `cd backend && pytest tests/test_sessions_api.py -q` 开始
+- 当前最大风险：Task 3 会首次接入真实 LLM HTTP 协议与 prompt 文件，必须继续保持测试里 mock 外部依赖、主链路里使用真实客户端
+- 推荐先跑的验证命令：Task 3 的红灯从 `cd backend && pytest tests/test_llm_orchestrator.py -q` 开始
