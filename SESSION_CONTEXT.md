@@ -26,11 +26,11 @@
 - 当前代码状态：主要完成了 spec、plan、执行规则、Apple 风格参考文档的整理
 
 ## 已完成的关键文档
-- 产品规格：[docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md](/Users/zzten/work/zzetzMain/docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md)
-- 实施计划：[docs/superpowers/plans/2026-04-08-personal-website-mvp.md](/Users/zzten/work/zzetzMain/docs/superpowers/plans/2026-04-08-personal-website-mvp.md)
-- 里程碑计划：[PLANS.md](/Users/zzten/work/zzetzMain/PLANS.md)
-- 执行规程：[IMPLEMENT.md](/Users/zzten/work/zzetzMain/IMPLEMENT.md)
-- 执行状态记录：[DOCUMENTATION.md](/Users/zzten/work/zzetzMain/DOCUMENTATION.md)
+- 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
+- 实施计划：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md`
+- 里程碑计划：`PLANS.md`
+- 执行规程：`IMPLEMENT.md`
+- 执行状态记录：`DOCUMENTATION.md`
 
 ## 核心产品约束
 - 只支持简体中文输入与输出
@@ -41,8 +41,8 @@
 - 移动端优先
 
 ## 前端设计约束
-- 所有前端 UI 以 [apple/DESIGN.md](/Users/zzten/work/zzetzMain/apple/DESIGN.md) 为视觉基准
-- 默认深色风格为主，参考 [preview-dark.html](/Users/zzten/work/zzetzMain/apple/preview-dark.html)
+- 所有前端 UI 以 `apple/DESIGN.md` 为视觉基准
+- 默认深色风格为主，参考 `apple/preview-dark.html`
 - `apple/README.md` 和 `apple/DESIGN.md` 已翻译为简体中文，并加入了适配中文界面的建议
 - 中文界面不要机械照搬英文负字距与紧缩参数，优先保证可读性
 

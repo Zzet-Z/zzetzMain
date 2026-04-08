@@ -105,9 +105,11 @@ git worktree remove ../zzetz-task-N
 
 ---
 
-## Step 5: Update DOCUMENTATION.md
-每完成一个 Task，必须更新 `DOCUMENTATION.md`，写入：
+## Step 5: Update DOCUMENTATION.md and SESSION_CONTEXT.md
+每完成一个 Task，必须同步更新以下两个文件：
 
+### DOCUMENTATION.md（系统记录，完整）
+写入：
 - 本次 Task 名称与编号
 - 修改摘要
 - 关键设计决策（如果偏离了 Plan，说明原因）
@@ -115,7 +117,16 @@ git worktree remove ../zzetz-task-N
 - 已知问题
 - 下一步建议
 
-`DOCUMENTATION.md` 是项目的系统记录。agent 看不到的信息对它不存在——模糊、过时、不在仓库里的文档会直接伤害后续执行质量。
+### SESSION_CONTEXT.md（快速恢复摘要，精简）
+更新以下字段：
+- `当前阶段` → 改为刚完成的 Task 编号与下一个应执行的 Task
+- `当前状态` → 改为当前真实状态（in progress / completed / blocked）
+- `下一次会话最应该做什么` → 改为下一个 Task 的具体起点
+- `最近重要提交` → 追加本次 commit hash 与 message
+
+**注意**：`SESSION_CONTEXT.md` 里只写相对路径（如 `docs/...`），不写本地绝对路径。
+
+`DOCUMENTATION.md` 是完整记录，`SESSION_CONTEXT.md` 是快速恢复入口。两者都必须在任务结束前更新，否则下一个会话的起点信息是错的。
 
 ---
 
