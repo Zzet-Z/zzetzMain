@@ -67,3 +67,18 @@ class DocumentRecord(Base):
         DateTime,
         default=lambda: datetime.now(UTC),
     )
+
+
+class AttachmentRecord(Base):
+    __tablename__ = "attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_token: Mapped[str] = mapped_column(ForeignKey("sessions.token"))
+    file_name: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[str] = mapped_column(Text)
+    mime_type: Mapped[str] = mapped_column(String(64))
+    caption: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+    )

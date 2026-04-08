@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 6 — 上传与安全限制
-- Current task: Task 6 — 实现安全图片上传与附件记录
-- Status: Task 5 completed, Task 6 ready to start
+- Current milestone: Milestone 7 — 首页移动端优先 UI
+- Current task: Task 7 — 实现首页五段式移动端优先界面
+- Status: Task 6 completed, Task 7 ready to start
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,6 @@
 - （无）
 
 ### Not started
-- Milestone 6: 上传与安全限制（Task 6）
 - Milestone 7: 首页移动端优先 UI（Task 7）
 - Milestone 8: 需求梳理页 UI 与前后端接线（Task 8）
 - Milestone 9: 最终验证与文档（Task 9）
@@ -32,6 +31,47 @@
 ---
 
 ## Task log
+
+### [2026-04-08] Task 6: 实现上传、安全限制与错误处理
+**Summary**
+- 新建 `storage.py`，实现 MIME 白名单、大小检查、token 命名空间目录与安全文件名保存
+- 新建 `POST /api/sessions/<token>/attachments`
+- 新增 `AttachmentRecord` 数据模型，落库存储附件元数据
+- 注册上传路由并补齐 8MB 限制、12 张上限、中文错误信息
+
+**Files changed**
+- `backend/app/__init__.py`
+- `backend/app/models.py`
+- `backend/app/routes/uploads.py`
+- `backend/app/services/storage.py`
+- `backend/tests/test_uploads_api.py`
+
+**Validation run**
+- 红灯确认：
+  - `cd backend && pytest tests/test_uploads_api.py -q`
+- 绿灯验证：
+  - `cd backend && pytest tests/test_uploads_api.py -q`
+  - `cd backend && pytest -q`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 初始上传接口返回 404
+- 绿灯阶段全部通过：
+  - 合法图片上传成功
+  - 非图片、超 8MB、超 12 张限制都被拒绝
+  - 后端当前全量测试通过（27 passed）
+
+**Notes**
+- `secure_filename` 已用于净化文件名，测试覆盖了 `../reference.png` 这类路径穿越输入
+- 上传目录按 `UPLOAD_DIR/<token>/...` 组织，便于后续会话级清理
+- 当前只允许 `image/png`、`image/jpeg`、`image/webp`
+
+**Known issues**
+- `SESSION_CONTEXT.md` 的“最近重要提交”会在下一次任务收尾时补录本次 Task 6 提交 hash
+
+**Next suggested step**
+- 执行 Milestone 7 / Task 7：首页五段式移动端优先 UI
+- 开始前先读 `apple/DESIGN.md`，完成后必须跑前端单测、构建和 `agent-browser` E2E
 
 ### [2026-04-08] Task 5: 实现并发队列、轮询状态与文档生成
 **Summary**
@@ -332,6 +372,7 @@
 ## Verification history
 | Date | Scope | Commands | Result | Notes |
 |------|-------|----------|--------|-------|
+| 2026-04-08 | Task 6 red/green | `cd backend && pytest tests/test_uploads_api.py -q`; `cd backend && pytest -q` | Passed | 先确认上传接口缺失，再补齐存储、校验与附件记录 |
 | 2026-04-08 | Task 5 red/green | `cd backend && pytest tests/test_queue_and_generation.py::test_sixth_active_session_is_queued -q`; `cd backend && pytest tests/test_queue_and_generation.py -q`; `cd backend && pytest -q` | Passed | 先确认队列/文档渲染模块缺失，再补齐排队、文档接口和轮询状态 |
 | 2026-04-08 | Task 4 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_skip_template_moves_to_style -q`; `cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q`; `cd backend && pytest -q` | Passed | 先确认状态机缺失，再补齐状态机、摘要策略与消息路由 |
 | 2026-04-08 | Task 3 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_build_chat_request_uses_chinese_and_stage_prompt -q`; `cd backend && pytest tests/test_llm_orchestrator.py -q`; `cd backend && pytest -q` | Passed | 先确认 LLM 模块缺失，再补齐客户端、编排器和 prompts |
@@ -344,8 +385,8 @@
 ## Handoff notes
 给下一个执行者的说明：
 
-- 当前最应该继续的任务：**Milestone 6 / Task 6 — 实现安全图片上传与附件记录**
-- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 6 部分
+- 当前最应该继续的任务：**Milestone 7 / Task 7 — 实现首页五段式移动端优先 UI**
+- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 7 部分
 - 不要动的区域：`docs/superpowers/` 下的 spec 和 plan 文件
-- 当前最大风险：Task 6 会首次引入文件系统写入与文件类型校验，必须严守白名单、大小限制和 token 命名空间
-- 推荐先跑的验证命令：Task 6 从 `cd backend && pytest tests/test_uploads_api.py -q` 开始
+- 当前最大风险：Task 7 是首个完整前端 UI 任务，必须先读 `apple/DESIGN.md`，并在完成后执行真实浏览器 E2E，而不是只跑组件测试
+- 推荐先跑的验证命令：Task 7 从 `cd frontend && npm test -- home-page.test.tsx` 开始，随后 `cd frontend && npm run build`
