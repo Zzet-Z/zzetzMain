@@ -3,18 +3,46 @@
 @tailwind utilities;
 
 :root {
-  color: #f8fafc;
-  background-color: #020617;
-  font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --color-bg: #000000;
+  --color-surface-1: #f5f5f7;
+  --color-surface-2: #272729;
+  --color-surface-3: #2a2a2d;
+  --color-ink: #1d1d1f;
+  --color-accent: #0071e3;
+  --color-link-bright: #2997ff;
+  color: #ffffff;
+  background-color: var(--color-bg);
+  font-family:
+    "SF Pro Display",
+    "SF Pro Text",
+    "PingFang SC",
+    "Noto Sans SC",
+    "Microsoft YaHei",
+    sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #020617;
+  background: var(--color-bg);
 }
 
 #root {
   min-height: 100vh;
+}
+
+a {
+  color: inherit;
 }

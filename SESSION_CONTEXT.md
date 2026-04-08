@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：`Milestone 6 / Task 6` 已完成，可继续进入 `Milestone 7 / Task 7`
-- 当前应执行任务：`Milestone 7 / Task 7`
-- 当前代码状态：后端已具备 SQLite 初始化、session API、真实 LLM client、状态机、消息路由、并发队列、文档生成、附件上传与文档读取接口；前端最小壳与首页路由仍保持可运行
+- 当前状态：`Milestone 7 / Task 7` 已完成，可继续进入 `Milestone 8 / Task 8`
+- 当前应执行任务：`Milestone 8 / Task 8`
+- 当前代码状态：后端已具备 SQLite 初始化、session API、真实 LLM client、状态机、消息路由、并发队列、文档生成、附件上传与文档读取接口；前端首页五段式 UI 已完成并通过浏览器验收
 
 ## 已完成的关键文档
 - 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -68,13 +68,13 @@ Milestone 1 到 9 已写完，主要覆盖：
 - Task 9：最终验证与文档
 
 ## 下一次会话最应该做什么
-从 `Milestone 7 / Task 7` 开始实现，不要回头继续打磨 spec/plan，除非发现执行级矛盾。
+从 `Milestone 8 / Task 8` 开始实现，不要回头继续打磨 spec/plan，除非发现执行级矛盾。
 
 建议顺序：
-1. 读 `PLANS.md` 里的 Milestone 7
-2. 读 `docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 7
-3. 先读 `apple/DESIGN.md`，再补 `frontend/src/test/home-page.test.tsx` 红灯测试并实现首页五段式 UI
-4. Task 7 结束时把本次 Task 6 的提交 hash 补录到 `最近重要提交`
+1. 读 `PLANS.md` 里的 Milestone 8
+2. 读 `docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 8
+3. 先补 `frontend/src/test/session-page.test.tsx`、`session-flow.test.tsx`、`mobile-states.test.tsx` 红灯测试，再实现 intake 六组件与 API 接线
+4. Task 8 结束时把本次 Task 7 的提交 hash 补录到 `最近重要提交`
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -83,7 +83,8 @@ Milestone 1 到 9 已写完，主要覆盖：
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
-- `待本次提交后补录` `feat: add safe image uploads`
+- `待本次提交后补录` `feat: build mobile-first homepage`
+- `05f3376` `feat: add safe image uploads`
 - `ddc5c03` `feat: add queue control and document generation states`
 - `fd565f1` `feat: add stage-aware intake engine`
 - `fbd24fa` `feat: add real llm client and prompt orchestration`
@@ -97,7 +98,7 @@ Milestone 1 到 9 已写完，主要覆盖：
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
-- Task 7 会首次进入完整前端 UI 实现；必须遵守 `apple/DESIGN.md` 并用 `agent-browser` 做真实页面验收
+- Task 8 会把前端页面状态、轮询和后端 API 契约真正接起来；如果不收敛边界，容易顺手改到首页或后端消息协议之外
 - 新会话不要直接开始改代码，先按 `AGENTS.md` 指定顺序读文档
 - 前端 UI 实现必须优先遵守 `apple/DESIGN.md`，不要临时发明另一套视觉语言
 - `backend/.env` 已从根目录 `.env.local` 迁入并由 `backend/app/config.py` 读取，后续不要把密钥写回仓库追踪文件

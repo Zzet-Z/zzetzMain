@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 7 — 首页移动端优先 UI
-- Current task: Task 7 — 实现首页五段式移动端优先界面
-- Status: Task 6 completed, Task 7 ready to start
+- Current milestone: Milestone 8 — 需求梳理页 UI 与前后端接线
+- Current task: Task 8 — 实现需求梳理页六组件与 API 接线
+- Status: Task 7 completed, Task 8 ready to start
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,6 @@
 - （无）
 
 ### Not started
-- Milestone 7: 首页移动端优先 UI（Task 7）
 - Milestone 8: 需求梳理页 UI 与前后端接线（Task 8）
 - Milestone 9: 最终验证与文档（Task 9）
 
@@ -31,6 +30,57 @@
 ---
 
 ## Task log
+
+### [2026-04-08] Task 7: 实现首页五段式移动端优先 UI
+**Summary**
+- 先按要求读取 `apple/DESIGN.md`，然后将首页拆为 `Hero / Problem / Process / OutputPreview / FinalCta` 五段
+- 新建可复用 `Button` 组件，并在首页 CTA 上提供本地 loading 状态
+- 新建 `routes/home-page.tsx`，将首页路由从 `app.tsx` 中解耦
+- 更新全局样式 token，切换为 Apple 风格深色主场景 + 浅色信息区块节奏
+
+**Files changed**
+- `frontend/src/app.tsx`
+- `frontend/src/styles.css`
+- `frontend/src/routes/home-page.tsx`
+- `frontend/src/components/ui/button.tsx`
+- `frontend/src/components/home/hero.tsx`
+- `frontend/src/components/home/problem.tsx`
+- `frontend/src/components/home/process.tsx`
+- `frontend/src/components/home/output-preview.tsx`
+- `frontend/src/components/home/final-cta.tsx`
+- `frontend/src/test/home-page.test.tsx`
+
+**Validation run**
+- 红灯确认：
+  - `cd frontend && npm test -- home-page.test.tsx`
+- 绿灯验证：
+  - `cd frontend && npm test -- home-page.test.tsx app-shell.test.tsx`
+  - `cd frontend && npm run build`
+  - `agent-browser` 手机视口验收：
+    - 打开 `http://127.0.0.1:4173/`
+    - 快照确认首屏标题与 CTA 存在
+    - 点击 CTA，确认元素可交互
+    - 执行 `document.documentElement.scrollWidth <= window.innerWidth`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 初始首页缺少五段式结构与 CTA 文案
+- 绿灯阶段全部通过：
+  - 前端单测通过（`home-page` + `app-shell`）
+  - 前端构建通过
+  - 真实浏览器下手机视口无横向溢出，首屏标题与 CTA 可见，CTA 可点击
+
+**Notes**
+- 当前 CTA 先提供本地 loading 反馈，不提前接入 Task 8 的真实 session 创建跳转
+- 视觉实现遵循 Apple 风格的黑 / 浅灰区块切换、单一蓝色强调和克制阴影
+- 中文排版没有强套英文负字距，而是保留了紧凑标题和更舒展的正文行高
+
+**Known issues**
+- `SESSION_CONTEXT.md` 的“最近重要提交”会在下一次任务收尾时补录本次 Task 7 提交 hash
+
+**Next suggested step**
+- 执行 Milestone 8 / Task 8：需求梳理页六组件、API client、轮询和移动端状态
+- 开始前先读 Task 8 计划，再补 `session-page.test.tsx / session-flow.test.tsx / mobile-states.test.tsx` 红灯测试
 
 ### [2026-04-08] Task 6: 实现上传、安全限制与错误处理
 **Summary**
@@ -372,6 +422,7 @@
 ## Verification history
 | Date | Scope | Commands | Result | Notes |
 |------|-------|----------|--------|-------|
+| 2026-04-08 | Task 7 red/green | `cd frontend && npm test -- home-page.test.tsx`; `cd frontend && npm test -- home-page.test.tsx app-shell.test.tsx`; `cd frontend && npm run build`; `agent-browser` mobile E2E | Passed | 先确认首页结构缺失，再补齐五段式 UI、单测、构建与浏览器验收 |
 | 2026-04-08 | Task 6 red/green | `cd backend && pytest tests/test_uploads_api.py -q`; `cd backend && pytest -q` | Passed | 先确认上传接口缺失，再补齐存储、校验与附件记录 |
 | 2026-04-08 | Task 5 red/green | `cd backend && pytest tests/test_queue_and_generation.py::test_sixth_active_session_is_queued -q`; `cd backend && pytest tests/test_queue_and_generation.py -q`; `cd backend && pytest -q` | Passed | 先确认队列/文档渲染模块缺失，再补齐排队、文档接口和轮询状态 |
 | 2026-04-08 | Task 4 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_skip_template_moves_to_style -q`; `cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q`; `cd backend && pytest -q` | Passed | 先确认状态机缺失，再补齐状态机、摘要策略与消息路由 |
@@ -385,8 +436,8 @@
 ## Handoff notes
 给下一个执行者的说明：
 
-- 当前最应该继续的任务：**Milestone 7 / Task 7 — 实现首页五段式移动端优先 UI**
-- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 7 部分
+- 当前最应该继续的任务：**Milestone 8 / Task 8 — 实现需求梳理页六组件与 API 接线**
+- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 8 部分
 - 不要动的区域：`docs/superpowers/` 下的 spec 和 plan 文件
-- 当前最大风险：Task 7 是首个完整前端 UI 任务，必须先读 `apple/DESIGN.md`，并在完成后执行真实浏览器 E2E，而不是只跑组件测试
-- 推荐先跑的验证命令：Task 7 从 `cd frontend && npm test -- home-page.test.tsx` 开始，随后 `cd frontend && npm run build`
+- 当前最大风险：Task 8 既涉及前端状态管理也涉及后端 API 契约，容易把未计划的前端路由或消息细节扩散开
+- 推荐先跑的验证命令：Task 8 从 `cd frontend && npm test -- session-page.test.tsx session-flow.test.tsx mobile-states.test.tsx` 开始，随后 `cd frontend && npm run build`
