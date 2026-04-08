@@ -689,6 +689,7 @@ class LLMClient:
 
 ```python
 # backend/app/services/llm_orchestrator.py
+import json
 from pathlib import Path
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
@@ -721,6 +722,29 @@ def generate_stage_reply(client, *, stage: str, summary_payload: dict, recent_me
         input_text=request["context_text"],
     )
     return response.text
+
+
+def extract_summary_update(client, *, current_stage: str, existing_summary: dict, recent_messages: list[dict]) -> dict:
+    instructions = load_prompt("system.md") + "\n\n" + load_prompt("extract_summary.md")
+    history = "\n".join(f"{item['role']}: {item['content']}" for item in recent_messages)
+    response = client.generate(
+        instructions=instructions,
+        input_text=f"当前阶段：{current_stage}\n已有摘要：{existing_summary}\n新增对话：{history}",
+    )
+    return json.loads(response.text)
+
+
+def render_prd_with_llm(client, *, summary_payload: dict, attachments: list[dict]) -> tuple[str, str]:
+    instructions = load_prompt("system.md") + "\n\n" + load_prompt("render_prd.md")
+    attachment_text = "\n".join(f"- {item['file_name']}：{item['caption']}" for item in attachments)
+    response = client.generate(
+        instructions=instructions,
+        input_text=f"结构化摘要：{summary_payload}\n附件：{attachment_text}",
+        timeout=45.0,
+    )
+    prd_markdown = response.text
+    summary_text = f"网站类型：{summary_payload.get('website_type') or '未确定'}\n视觉方向：{summary_payload.get('visual_direction') or '未确定'}"
+    return summary_text, prd_markdown
 ```
 
 - [ ] **Step 5: 写首版中文 prompt 文件**
@@ -893,12 +917,12 @@ def next_stage_for_session(*, current_stage: str, selected_template, selected_st
 
 ```python
 # backend/app/services/summary_builder.py
-def should_refresh_summary(*, current_stage: str, user_message: str) -> bool:
-    if current_stage in {"template", "style"} and user_message.strip():
+def should_refresh_summary(*, current_stage: str, stage_completed: bool, generation_requested: bool) -> bool:
+    if current_stage in {"template", "style"}:
         return True
-    if current_stage in {"positioning", "content", "features"} and any(
-        keyword in user_message for keyword in ["目标", "受众", "作品", "服务", "联系", "预约", "博客", "不要"]
-    ):
+    if stage_completed:
+        return True
+    if generation_requested:
         return True
     return False
 
@@ -916,9 +940,10 @@ def merge_summary(existing: dict, extracted: dict) -> dict:
 from flask import Blueprint, jsonify, request
 from ..db import SessionLocal
 from ..models import MessageRecord, SessionRecord, SummarySnapshot
+from ..services.intake_state_machine import next_stage_for_session
 from ..services.llm_client import LLMClient
-from ..services.llm_orchestrator import generate_stage_reply
-from ..services.summary_builder import should_refresh_summary
+from ..services.llm_orchestrator import generate_stage_reply, extract_summary_update
+from ..services.summary_builder import should_refresh_summary, merge_summary
 
 messages_bp = Blueprint("messages", __name__)
 
@@ -929,7 +954,9 @@ def create_message(token: str):
     session = db.get(SessionRecord, token)
     if session is None:
         return jsonify({"message": "这次整理链接可能已失效，请重新开始。"}), 404
-    content = request.get_json()["content"]
+    payload = request.get_json()
+    content = payload["content"]
+    user_action = payload.get("action", "answered")
 
     db.add(MessageRecord(session_token=token, role="user", content=content, stage=session.current_stage))
     latest_summary = (
@@ -953,8 +980,32 @@ def create_message(token: str):
         return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
     db.add(MessageRecord(session_token=token, role="assistant", content=assistant_reply, stage=session.current_stage))
 
-    if should_refresh_summary(current_stage=session.current_stage, user_message=content):
-        db.add(SummarySnapshot(session_token=token, payload=latest_summary.payload))
+    stage_completed = payload.get("stage_completed", False)
+    generation_requested = payload.get("generation_requested", False)
+
+    if should_refresh_summary(
+        current_stage=session.current_stage,
+        stage_completed=stage_completed,
+        generation_requested=generation_requested,
+    ):
+        extracted = extract_summary_update(
+            client,
+            current_stage=session.current_stage,
+            existing_summary=latest_summary.payload,
+            recent_messages=[{"role": "user", "content": content}],
+        )
+        merged = merge_summary(latest_summary.payload, extracted)
+        db.add(SummarySnapshot(session_token=token, payload=merged))
+    else:
+        merged = latest_summary.payload
+
+    session.current_stage = next_stage_for_session(
+        current_stage=session.current_stage,
+        selected_template=session.selected_template,
+        selected_style=session.selected_style,
+        summary_payload=merged,
+        user_action=user_action,
+    )
 
     db.commit()
     return jsonify({"assistant_reply": assistant_reply, "current_stage": session.current_stage}), 201
@@ -971,15 +1022,21 @@ def test_message_route_uses_current_stage_prompt(tmp_path, monkeypatch):
 
     class FakeLLMClient:
         def generate(self, *, instructions: str, input_text: str, timeout: float = 30.0):
+            if "输出更新后的 JSON 摘要" in instructions:
+                return type("Resp", (), {"text": "{\"website_type\":\"个人作品页\",\"positioning_ready\": true}"})()
             return type("Resp", (), {"text": "请继续告诉我你的网站主要给谁看。"})()
 
     monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeLLMClient())
 
-    response = client.post(f"/api/sessions/{token}/messages", json={"content": "我是插画师"})
+    response = client.post(
+        f"/api/sessions/{token}/messages",
+        json={"content": "我是插画师", "stage_completed": True, "action": "selected"},
+    )
     payload = response.get_json()
 
     assert response.status_code == 201
     assert payload["assistant_reply"]
+    assert payload["current_stage"] == "style"
 ```
 
 - [ ] **Step 7: 运行测试并确保通过**
@@ -1008,6 +1065,7 @@ git commit -m "feat: add stage-aware intake engine"
 - Create: `backend/app/services/document_renderer.py`
 - Create: `backend/app/routes/documents.py`
 - Modify: `backend/app/routes/messages.py`
+- Modify: `backend/app/services/llm_orchestrator.py`
 - Test: `backend/tests/test_queue_and_generation.py`
 
 - [ ] **Step 1: 写失败的排队测试**
@@ -1032,6 +1090,21 @@ def test_sixth_active_session_is_queued(tmp_path):
     assert response.status_code == 202
     assert payload["session_status"] == "queued"
     assert payload["queue_position"] == 1
+```
+
+在这条测试和同文件里的文档生成测试中，都需要 monkeypatch `LLMClient.from_env()`，避免测试依赖真实环境变量和外部 API：
+
+```python
+class FakeLLMClient:
+    def generate(self, *, instructions: str, input_text: str, timeout: float = 30.0):
+        if "输出更新后的 JSON 摘要" in instructions:
+            return type("Resp", (), {"text": "{\"website_type\":\"个人作品页\",\"visual_direction\":\"极简高级\"}"})()
+        if "输出中文 PRD" in instructions:
+            return type("Resp", (), {"text": "# 网站需求 PRD\n\n## 项目目标\n展示作品并获取联系。"})()
+        return type("Resp", (), {"text": "请继续告诉我你的目标受众。"})()
+
+monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeLLMClient())
+monkeypatch.setattr("app.services.document_renderer.LLMClient.from_env", lambda: FakeLLMClient())
 ```
 
 - [ ] **Step 2: 运行测试，确认失败**
@@ -1086,31 +1159,13 @@ def reserve_slot(token: str, max_active_sessions: int) -> tuple[str, int | None]
 
 ```python
 # backend/app/services/document_renderer.py
-def render_summary(payload: dict) -> str:
-    return "\n".join(
-        [
-            f"网站类型：{payload.get('website_type') or '未确定'}",
-            f"目标受众：{payload.get('audience') or '未确定'}",
-            f"视觉方向：{payload.get('visual_direction') or '未确定'}",
-        ]
-    )
+from ..services.llm_client import LLMClient
+from ..services.llm_orchestrator import render_prd_with_llm
 
 
-def render_prd(payload: dict, attachments: list[dict]) -> str:
-    lines = [
-        "# 网站需求 PRD",
-        "",
-        "## 项目目标",
-        payload.get("goal") or "待补充",
-        "",
-        "## 页面结构",
-    ]
-    for item in payload.get("page_structure", []):
-        lines.append(f"- {item}")
-    lines.extend(["", "## 附件"])
-    for item in attachments:
-        lines.append(f"- {item['file_name']}：{item['caption']}")
-    return "\n".join(lines)
+def render_document_bundle(*, summary_payload: dict, attachments: list[dict]) -> tuple[str, str]:
+    client = LLMClient.from_env()
+    return render_prd_with_llm(client, summary_payload=summary_payload, attachments=attachments)
 ```
 
 - [ ] **Step 5: 更新消息路由，加入排队和生成状态**
@@ -1155,6 +1210,7 @@ def test_document_endpoint_returns_chinese_summary(tmp_path):
 
     assert response.status_code == 200
     assert "网站类型" in payload["summary_text"]
+    assert "# 网站需求 PRD" in payload["prd_markdown"]
 ```
 
 ```python
@@ -1184,7 +1240,35 @@ def get_document(token: str):
     )
 ```
 
-- [ ] **Step 7: 跑通队列和文档测试**
+- [ ] **Step 7: 在生成阶段调用 LLM 输出摘要与 PRD**
+
+```python
+from ..models import AttachmentRecord, DocumentRecord
+from ..services.document_renderer import render_document_bundle
+
+if generation_requested:
+    attachments = [
+        {"file_name": item.file_name, "caption": item.caption}
+        for item in db.query(AttachmentRecord).filter(AttachmentRecord.session_token == token)
+    ]
+    summary_text, prd_markdown = render_document_bundle(
+        summary_payload=merged,
+        attachments=attachments,
+    )
+    document = (
+        db.query(DocumentRecord)
+        .filter(DocumentRecord.session_token == token)
+        .order_by(DocumentRecord.id.desc())
+        .first()
+    )
+    document.version += 1
+    document.status = "ready"
+    document.summary_text = summary_text
+    document.prd_markdown = prd_markdown
+    session.status = "completed"
+```
+
+- [ ] **Step 8: 跑通队列和文档测试**
 
 Run:
 
@@ -1197,7 +1281,7 @@ Expected:
 - 第六个会话进入排队
 - 文档接口返回中文摘要和 PRD
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add backend/app backend/tests
@@ -1463,21 +1547,53 @@ export function Hero({ isStarting, onStart }: { isStarting: boolean; onStart: ()
 ```tsx
 // frontend/src/components/home/problem.tsx
 export function ProblemSection() {
-  return <section className="bg-stone-100 px-6 py-20 text-neutral-900">痛点与产品理念</section>;
+  return (
+    <section className="bg-stone-100 px-6 py-20 text-neutral-900">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <h2 className="text-3xl font-semibold">你知道自己需要网站，但不知道怎么把它说清楚。</h2>
+        <ul className="space-y-3 text-base text-neutral-700">
+          <li>你知道自己需要一个网站，但不知道应该做成什么样。</li>
+          <li>你能看出哪些网站好看，但很难把审美偏好描述清楚。</li>
+          <li>你不会写 PRD，也不知道怎么把需求交给 AI 或开发者继续实现。</li>
+        </ul>
+      </div>
+    </section>
+  );
 }
 ```
 
 ```tsx
 // frontend/src/components/home/process.tsx
 export function ProcessSection() {
-  return <section className="px-6 py-20">三步流程</section>;
+  return (
+    <section className="px-6 py-20">
+      <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
+        <article><h3>1. 选择方向</h3><p>先选网站类型与风格参考，也可以跳过。</p></article>
+        <article><h3>2. 梳理需求</h3><p>通过中文对话说明目标、内容、偏好与边界。</p></article>
+        <article><h3>3. 获取结果</h3><p>系统输出可直接继续使用的摘要与完整 PRD。</p></article>
+      </div>
+    </section>
+  );
 }
 ```
 
 ```tsx
 // frontend/src/components/home/output-preview.tsx
 export function OutputPreviewSection() {
-  return <section className="bg-stone-100 px-6 py-20 text-neutral-900">结果展示</section>;
+  return (
+    <section className="bg-stone-100 px-6 py-20 text-neutral-900">
+      <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-2">
+        <article className="rounded-3xl border border-neutral-200 bg-white p-6">
+          <h3 className="text-xl font-semibold">网站需求摘要</h3>
+          <p className="mt-3 text-sm text-neutral-600">快速确认网站类型、目标受众、视觉方向与核心模块。</p>
+        </article>
+        <article className="rounded-3xl border border-neutral-200 bg-white p-6">
+          <h3 className="text-xl font-semibold">标准 PRD 文档</h3>
+          <p className="mt-3 text-sm text-neutral-600">可继续交给 AI 或开发者使用的中文结构化需求文档。</p>
+        </article>
+      </div>
+    </section>
+  );
 }
 ```
 
@@ -1677,6 +1793,10 @@ beforeEach(() => {
     }),
   );
 });
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 ```
 
 - [ ] **Step 6: 实现需求页布局与轮询参数**
@@ -1697,6 +1817,9 @@ export function SessionPage({ initialState }: { initialState?: { status: string;
   const { token = "" } = useParams();
   const [session, setSession] = useState<any>(initialState ?? null);
   const [documentState, setDocumentState] = useState<any>(null);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<Array<{ fileName: string; caption: string }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1744,18 +1867,36 @@ export function SessionPage({ initialState }: { initialState?: { status: string;
     return <main className="px-4 py-6">正在加载...</main>;
   }
 
+  async function handleTemplateSelect(value: string) {
+    setSession((current: any) => ({ ...current, selected_template: value }));
+  }
+
+  async function handleStyleSelect(value: string) {
+    setSession((current: any) => ({ ...current, selected_style: value }));
+  }
+
+  async function handleSend() {
+    if (!draft.trim()) return;
+    setMessages((current) => [...current, { role: "user", content: draft }]);
+    setDraft("");
+  }
+
+  async function handleUpload(file: File) {
+    setAttachments((current) => [...current, { fileName: file.name, caption: "参考图片" }]);
+  }
+
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
       <div className="mx-auto max-w-6xl px-4 py-4">
         <StepHeader currentStage={session.current_stage ?? "template"} />
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4">
-            <TemplateSelector />
-            <StyleSelector />
-            <ChatPanel />
-            <AttachmentPanel />
+            <TemplateSelector onSelect={handleTemplateSelect} onSkip={() => handleTemplateSelect("跳过")} />
+            <StyleSelector onSelect={handleStyleSelect} onSkip={() => handleStyleSelect("跳过")} />
+            <ChatPanel messages={messages} draft={draft} onDraftChange={setDraft} onSend={handleSend} />
+            <AttachmentPanel attachments={attachments} onUpload={handleUpload} />
           </div>
-          <SummaryPanel session={session} documentState={documentState} />
+          <SummaryPanel session={session} summaryPayload={session.summary?.payload} documentState={documentState} />
         </div>
       </div>
     </main>
@@ -1786,11 +1927,31 @@ export function StepHeader({ currentStage }: { currentStage: string }) {
 
 ```tsx
 // frontend/src/components/intake/template-selector.tsx
-export function TemplateSelector() {
+const TEMPLATE_OPTIONS = [
+  "个人作品页",
+  "个人简历页",
+  "个人品牌页",
+  "服务介绍页",
+  "公司介绍页",
+  "预约/咨询型主页",
+];
+
+export function TemplateSelector({ onSelect, onSkip }: { onSelect: (value: string) => void; onSkip: () => void }) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
       <h2>模板</h2>
-      <button className="mt-3 rounded-full border border-white/20 px-4 py-2">跳过</button>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {TEMPLATE_OPTIONS.map((option) => (
+          <button
+            key={option}
+            className="rounded-2xl border border-white/10 px-4 py-4 text-left"
+            onClick={() => onSelect(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      <button className="mt-3 rounded-full border border-white/20 px-4 py-2" onClick={onSkip}>跳过</button>
     </section>
   );
 }
@@ -1798,10 +1959,24 @@ export function TemplateSelector() {
 
 ```tsx
 // frontend/src/components/intake/style-selector.tsx
-export function StyleSelector() {
+const STYLE_OPTIONS = ["极简高级", "现代专业", "强视觉作品集", "温和可信", "前卫未来感"];
+
+export function StyleSelector({ onSelect, onSkip }: { onSelect: (value: string) => void; onSkip: () => void }) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
       <h2>风格</h2>
+      <div className="mt-3 grid gap-3">
+        {STYLE_OPTIONS.map((option) => (
+          <button
+            key={option}
+            className="rounded-2xl border border-white/10 px-4 py-4 text-left"
+            onClick={() => onSelect(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      <button className="mt-3 rounded-full border border-white/20 px-4 py-2" onClick={onSkip}>跳过</button>
     </section>
   );
 }
@@ -1809,10 +1984,37 @@ export function StyleSelector() {
 
 ```tsx
 // frontend/src/components/intake/chat-panel.tsx
-export function ChatPanel() {
+export function ChatPanel({
+  messages,
+  draft,
+  onDraftChange,
+  onSend,
+}: {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSend: () => void;
+}) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
       <h2>需求对话</h2>
+      <div className="mt-4 space-y-3">
+        {messages.map((message, index) => (
+          <div key={index} className="rounded-2xl bg-black/20 p-3">
+            <p className="text-xs text-white/50">{message.role === "user" ? "你" : "助手"}</p>
+            <p className="mt-1 text-sm">{message.content}</p>
+          </div>
+        ))}
+      </div>
+      <textarea
+        className="mt-4 min-h-28 w-full rounded-2xl border border-white/10 bg-black/20 p-3"
+        value={draft}
+        onChange={(event) => onDraftChange(event.target.value)}
+        placeholder="用中文描述你的网站目标、内容和风格偏好"
+      />
+      <button className="mt-3 rounded-full bg-white px-4 py-2 text-neutral-950" onClick={onSend}>
+        发送
+      </button>
     </section>
   );
 }
@@ -1820,10 +2022,32 @@ export function ChatPanel() {
 
 ```tsx
 // frontend/src/components/intake/attachment-panel.tsx
-export function AttachmentPanel() {
+export function AttachmentPanel({
+  attachments,
+  onUpload,
+}: {
+  attachments: Array<{ fileName: string; caption: string }>;
+  onUpload: (file: File) => void;
+}) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-4">
       <h2>图片附件</h2>
+      <input
+        className="mt-3 block w-full text-sm"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onUpload(file);
+        }}
+      />
+      <div className="mt-3 space-y-2">
+        {attachments.map((item) => (
+          <div key={item.fileName} className="rounded-2xl bg-black/20 p-3 text-sm">
+            {item.fileName} {item.caption ? `- ${item.caption}` : ""}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -1831,11 +2055,25 @@ export function AttachmentPanel() {
 
 ```tsx
 // frontend/src/components/intake/summary-panel.tsx
-export function SummaryPanel({ session, documentState }: { session: any; documentState: any }) {
+export function SummaryPanel({
+  session,
+  summaryPayload,
+  documentState,
+}: {
+  session: any;
+  summaryPayload: any;
+  documentState: any;
+}) {
   return (
     <aside className="rounded-3xl border border-white/10 bg-white/5 p-4">
       <h2>摘要</h2>
       <p>当前状态：{session.status}</p>
+      <p>当前阶段：{session.current_stage}</p>
+      <dl className="mt-3 space-y-2 text-sm">
+        <div><dt>网站类型</dt><dd>{summaryPayload?.website_type ?? "未确定"}</dd></div>
+        <div><dt>视觉方向</dt><dd>{summaryPayload?.visual_direction ?? "未确定"}</dd></div>
+        <div><dt>目标受众</dt><dd>{summaryPayload?.audience ?? "未确定"}</dd></div>
+      </dl>
       {documentState?.summary_text ? <pre>{documentState.summary_text}</pre> : null}
     </aside>
   );
