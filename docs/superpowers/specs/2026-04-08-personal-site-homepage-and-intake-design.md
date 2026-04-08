@@ -58,6 +58,8 @@ The language should stay non-technical and avoid industry-heavy wording.
 
 The homepage should feel forward-looking, premium, and design-led. It should not look like a generic SaaS landing page.
 
+The product should be designed mobile-first. Mobile compatibility is not a secondary polish item for this MVP. The homepage and intake flow should both assume that a large share of users will arrive and complete the process on phones.
+
 The visual reference direction should borrow the following principles from the Apple design language described in the referenced Stitch design document:
 
 - Strong rhythm created by alternating dark and light sections
@@ -66,6 +68,13 @@ The visual reference direction should borrow the following principles from the A
 - Product outputs treated like display objects rather than dashboard widgets
 
 The site should avoid excessive "AI glow" aesthetics, busy gradients, or a cluttered card-heavy layout. The design should communicate taste, calmness, and confidence.
+
+Mobile-first visual constraints:
+
+- Key value proposition and primary CTA must be visible quickly without excessive scrolling on phone screens
+- Typography must remain premium-looking on mobile without collapsing into oversized headline blocks that crowd the viewport
+- Visual showcase areas must remain legible and elegant in a single-column layout
+- Touch targets must be sized for finger interaction rather than mouse precision
 
 Reference:
 
@@ -90,6 +99,8 @@ The homepage should make it obvious that:
 
 The homepage should use a small number of sections with high visual quality. Five sections are sufficient for the MVP.
 
+The homepage should be designed from the mobile layout upward, then expanded for tablet and desktop. The mobile version should preserve the premium feeling rather than becoming a stripped-down fallback.
+
 ### 7.1 Hero Section
 
 The hero is the most important section and should combine visual impact with immediate clarity.
@@ -101,6 +112,12 @@ Recommended structure:
 - Primary CTA to start the intake flow
 - Secondary CTA to explain how it works
 - A polished visual object representing either a future website preview or a refined requirements artifact
+
+Mobile behavior:
+
+- The CTA should remain above the fold on common phone viewport sizes
+- The supporting visual should not push the headline and CTA too far downward
+- The section should read as one clear story in a single column
 
 Suggested message direction:
 
@@ -145,6 +162,8 @@ This section should show the outcome rather than the chat itself. Present two si
 
 This helps users understand the value difference between this product and a generic chat assistant.
 
+On mobile, these outputs should stack vertically and remain readable as strong content previews rather than tiny desktop cards shrunk to fit.
+
 ### 7.5 Closing CTA Section
 
 The page should end with a simple restatement:
@@ -166,6 +185,8 @@ It should feel guided rather than technical. The user should feel that the syste
 ## 9. Intake Page Flow
 
 The intake page should use a staged flow with a top progress indicator and a chat-led primary interaction model.
+
+The intake flow must be fully usable on mobile. A phone user should be able to select templates, review style references, upload images, answer prompts, and read the final summary and PRD access state without needing a desktop browser.
 
 Recommended steps:
 
@@ -261,12 +282,18 @@ Desktop layout should behave like a three-part experience:
 - Main conversation area
 - Real-time summary and attachments area
 
-Mobile should collapse into a single-column flow while preserving the step model.
+Mobile should collapse into a single-column flow while preserving the step model. The mobile version should be treated as a first-class experience, not a simplified fallback.
 
 ### 10.1 Top Area
 
 - Step indicator
 - Session status message such as "正在梳理定位" or "正在生成需求文档"
+
+Mobile requirements:
+
+- Step progress should remain visible without taking too much vertical space
+- Status information should stay compact and readable
+- Sticky behavior is acceptable if it improves orientation without blocking content
 
 ### 10.2 Main Conversation Area
 
@@ -274,6 +301,12 @@ Mobile should collapse into a single-column flow while preserving the step model
 - Short assistant prompts
 - Freeform user input
 - Optional quick-select responses when users need help expressing themselves
+
+Mobile requirements:
+
+- The input area should remain usable above the software keyboard
+- Quick-select options should be tappable and not densely packed
+- Message width and spacing should prioritize readability on narrow screens
 
 ### 10.3 Summary Sidebar
 
@@ -289,6 +322,8 @@ The summary should update during the conversation and include:
 
 This sidebar helps users trust that the system is interpreting them correctly.
 
+On mobile, this should convert into a collapsible summary panel or step-linked summary section rather than a persistent side column.
+
 ### 10.4 Attachment Area
 
 The page should support image uploads during the conversation. Users may upload:
@@ -300,6 +335,12 @@ The page should support image uploads during the conversation. Users may upload:
 - Reference layouts or visual inspiration
 
 Attachments should be previewed in the session and recorded in the final PRD as supporting materials.
+
+Mobile requirements:
+
+- Image upload should support direct photo selection from the phone
+- Previews should remain lightweight and vertically scannable
+- Upload and removal actions should be easy to perform with touch
 
 ## 11. Output Requirements
 
@@ -404,12 +445,20 @@ The recommended MVP stack is:
 
 This should be implemented as a monolithic application with clear module boundaries.
 
+The frontend should follow a mobile-first responsive strategy:
+
+- Default layout and spacing rules should target phone screens first
+- Tablet and desktop layouts should progressively enhance the structure
+- Component APIs should avoid assuming hover, wide horizontal space, or mouse-first interactions
+
 ### 14.1 Frontend Routes
 
 Minimum routes:
 
 - `/`
 - `/session/:token`
+
+The React frontend should treat these routes as responsive surfaces rather than separate desktop and mobile variants. A single component system with mobile-first Tailwind breakpoints is preferred for the MVP.
 
 ### 14.2 Backend Responsibilities
 
@@ -507,6 +556,7 @@ The MVP is successful if it can do the following reliably:
 - Produce a readable user summary
 - Produce a standard Markdown PRD
 - Preserve the session through a unique token for later return and modification
+- Work well on mobile browsers, including the full intake flow and final output access
 
 ## 17. Recommended Implementation Order
 
@@ -514,8 +564,8 @@ The implementation should proceed in this order:
 
 1. Define the structured summary schema and PRD schema
 2. Build backend session, storage, and document-generation foundations
-3. Implement the intake page flow
-4. Build the homepage visual experience last, once product messaging is fully grounded
+3. Design and implement the intake page flow mobile-first
+4. Build the homepage visual experience mobile-first, then expand it for larger screens once product messaging is fully grounded
 
 This order reduces rework because the homepage should accurately reflect the real product flow, and the intake page should be built around the final output model.
 
