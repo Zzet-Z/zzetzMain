@@ -453,7 +453,7 @@ class DocumentRecord(Base):
 ```python
 # backend/app/routes/sessions.py
 from secrets import token_urlsafe
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from ..db import SessionLocal
 from ..models import DocumentRecord, SessionRecord, SummarySnapshot
 
@@ -481,6 +481,32 @@ def create_session():
             }
         ),
         201,
+    )
+```
+
+```python
+@sessions_bp.patch("/sessions/<token>")
+def update_session(token: str):
+    db = SessionLocal()
+    session = db.get(SessionRecord, token)
+    if session is None:
+        return jsonify({"message": "这次整理链接可能已失效，请重新开始。"}), 404
+
+    payload = request.get_json()
+    if "selected_template" in payload:
+        session.selected_template = payload["selected_template"]
+    if "selected_style" in payload:
+        session.selected_style = payload["selected_style"]
+    if "current_stage" in payload:
+        session.current_stage = payload["current_stage"]
+    db.commit()
+    return jsonify(
+        {
+            "token": session.token,
+            "current_stage": session.current_stage,
+            "selected_template": session.selected_template,
+            "selected_style": session.selected_style,
+        }
     )
 ```
 
@@ -731,7 +757,13 @@ def extract_summary_update(client, *, current_stage: str, existing_summary: dict
         instructions=instructions,
         input_text=f"当前阶段：{current_stage}\n已有摘要：{existing_summary}\n新增对话：{history}",
     )
-    return json.loads(response.text)
+    raw = response.text.strip()
+    if raw.startswith("```"):
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return existing_summary
 
 
 def render_prd_with_llm(client, *, summary_payload: dict, attachments: list[dict]) -> tuple[str, str]:
@@ -1242,6 +1274,14 @@ def get_document(token: str):
 
 - [ ] **Step 7: 在生成阶段调用 LLM 输出摘要与 PRD**
 
+把下面这段代码插入到 `backend/app/routes/messages.py` 的 `create_message()` 路由里。
+位置要求：
+
+- 在 `session.current_stage = next_stage_for_session(...)` 之后
+- 在最终 `db.commit()` 之前
+- 只在 `generation_requested` 为 `True` 时执行
+  这样文档生成会复用同一次请求中已经得到的最新 `merged` 摘要，而不是读取陈旧数据。
+
 ```python
 from ..models import AttachmentRecord, DocumentRecord
 from ..services.document_renderer import render_document_bundle
@@ -1741,6 +1781,16 @@ export async function getSession(token: string) {
   return response.json();
 }
 
+export async function updateSession(token: string, payload: Record<string, unknown>) {
+  const response = await fetch(`${API_BASE}/sessions/${token}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error("更新会话失败");
+  return response.json();
+}
+
 export async function sendMessage(token: string, content: string) {
   const response = await fetch(`${API_BASE}/sessions/${token}/messages`, {
     method: "POST",
@@ -1775,10 +1825,37 @@ import { vi } from "vitest";
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/sessions")) {
         return new Response(JSON.stringify({ token: "demo-token" }), { status: 201 });
+      }
+      if (url.includes("/sessions/demo-token") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body ?? "{}"));
+        return new Response(
+          JSON.stringify({
+            token: "demo-token",
+            current_stage: body.current_stage ?? "template",
+            selected_template: body.selected_template ?? null,
+            selected_style: body.selected_style ?? null,
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/sessions/demo-token/messages")) {
+        return new Response(
+          JSON.stringify({
+            assistant_reply: "请继续告诉我你的网站主要给谁看。",
+            current_stage: "positioning",
+          }),
+          { status: 201 },
+        );
+      }
+      if (url.includes("/sessions/demo-token/attachments")) {
+        return new Response(
+          JSON.stringify({ file_name: "reference.png", caption: "参考图片" }),
+          { status: 201 },
+        );
       }
       if (url.includes("/sessions/demo-token/document")) {
         return new Response(JSON.stringify({ status: "ready", summary_text: "网站类型：个人作品页" }), { status: 200 });
@@ -1805,7 +1882,7 @@ afterEach(() => {
 // frontend/src/routes/session-page.tsx
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getDocument, getSession } from "../lib/api";
+import { getDocument, getSession, sendMessage, updateSession, uploadAttachment } from "../lib/api";
 import { StepHeader } from "../components/intake/step-header";
 import { TemplateSelector } from "../components/intake/template-selector";
 import { StyleSelector } from "../components/intake/style-selector";
@@ -1868,21 +1945,36 @@ export function SessionPage({ initialState }: { initialState?: { status: string;
   }
 
   async function handleTemplateSelect(value: string) {
-    setSession((current: any) => ({ ...current, selected_template: value }));
+    const nextStage = "style";
+    const payload = await updateSession(token, {
+      selected_template: value === "跳过" ? null : value,
+      current_stage: nextStage,
+    });
+    setSession((current: any) => ({ ...current, ...payload }));
   }
 
   async function handleStyleSelect(value: string) {
-    setSession((current: any) => ({ ...current, selected_style: value }));
+    const nextStage = "positioning";
+    const payload = await updateSession(token, {
+      selected_style: value === "跳过" ? null : value,
+      current_stage: nextStage,
+    });
+    setSession((current: any) => ({ ...current, ...payload }));
   }
 
   async function handleSend() {
     if (!draft.trim()) return;
-    setMessages((current) => [...current, { role: "user", content: draft }]);
+    const userContent = draft;
+    setMessages((current) => [...current, { role: "user", content: userContent }]);
     setDraft("");
+    const payload = await sendMessage(token, userContent);
+    setMessages((current) => [...current, { role: "assistant", content: payload.assistant_reply }]);
+    setSession((current: any) => ({ ...current, current_stage: payload.current_stage }));
   }
 
   async function handleUpload(file: File) {
-    setAttachments((current) => [...current, { fileName: file.name, caption: "参考图片" }]);
+    const payload = await uploadAttachment(token, file, "参考图片");
+    setAttachments((current) => [...current, { fileName: payload.file_name, caption: payload.caption }]);
   }
 
   return (
