@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：`Milestone 2 / Task 2` 已完成，可继续进入 `Milestone 3 / Task 3`
-- 当前应执行任务：`Milestone 3 / Task 3`
-- 当前代码状态：后端已具备 SQLite 初始化、session 模型与 create/get/patch API；前端最小壳与首页路由仍保持可运行
+- 当前状态：`Milestone 3 / Task 3` 已完成，可继续进入 `Milestone 4 / Task 4`
+- 当前应执行任务：`Milestone 4 / Task 4`
+- 当前代码状态：后端已具备 SQLite 初始化、session API、真实 LLM client、基础编排器与首版中文 prompts；前端最小壳与首页路由仍保持可运行
 
 ## 已完成的关键文档
 - 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -68,13 +68,13 @@ Milestone 1 到 9 已写完，主要覆盖：
 - Task 9：最终验证与文档
 
 ## 下一次会话最应该做什么
-从 `Milestone 3 / Task 3` 开始实现，不要回头继续打磨 spec/plan，除非发现执行级矛盾。
+从 `Milestone 4 / Task 4` 开始实现，不要回头继续打磨 spec/plan，除非发现执行级矛盾。
 
 建议顺序：
-1. 读 `PLANS.md` 里的 Milestone 3
-2. 读 `docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 3
-3. 先补 `backend/tests/test_llm_orchestrator.py` 红灯测试，再实现 LLM client、orchestrator 和 prompt 文件
-4. Task 3 结束时把本次 Task 2 的提交 hash 补录到 `最近重要提交`
+1. 读 `PLANS.md` 里的 Milestone 4
+2. 读 `docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 4
+3. 先补 Task 4 指定的红灯测试，再实现状态机、摘要刷新判断、摘要合并和消息路由
+4. Task 4 结束时把本次 Task 3 的提交 hash 补录到 `最近重要提交`
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -83,7 +83,8 @@ Milestone 1 到 9 已写完，主要覆盖：
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
-- `待本次提交后补录` `feat: add session persistence and api`
+- `待本次提交后补录` `feat: add real llm client and prompt orchestration`
+- `c282917` `feat: add session persistence and api`
 - `d1aa76c` `chore: ignore tsbuildinfo artifact`
 - `bd01f6d` `chore: scaffold frontend and backend apps`
 - `a33a3cb` `docs: translate apple design docs to chinese`
@@ -93,7 +94,7 @@ Milestone 1 到 9 已写完，主要覆盖：
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
-- Task 3 会首次接入真实 LLM 请求与 prompt 文件；测试里必须 mock 外部依赖，但主链路实现不能退化成纯 mock
+- Task 4 会首次把状态机与真实 LLM 编排接进消息流；如果不收敛边界，容易提前把 Task 5 的队列和文档生成混进来
 - 新会话不要直接开始改代码，先按 `AGENTS.md` 指定顺序读文档
 - 前端 UI 实现必须优先遵守 `apple/DESIGN.md`，不要临时发明另一套视觉语言
 - `backend/.env` 已从根目录 `.env.local` 迁入并由 `backend/app/config.py` 读取，后续不要把密钥写回仓库追踪文件

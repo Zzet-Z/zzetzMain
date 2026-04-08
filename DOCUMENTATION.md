@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Milestone 3 — LLM 客户端与 Prompt 编排
-- Current task: Task 3 — 接入真实 LLM 客户端与 Prompt 编排
-- Status: Task 2 completed, Task 3 ready to start
+- Current milestone: Milestone 4 — 阶段状态机与对话引导
+- Current task: Task 4 — 实现六阶段状态机、消息路由与摘要提取
+- Status: Task 3 completed, Task 4 ready to start
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,6 @@
 - （无）
 
 ### Not started
-- Milestone 3: LLM 客户端与 Prompt 编排（Task 3）
 - Milestone 4: 阶段状态机与对话引导（Task 4）
 - Milestone 5: 并发队列与文档生成（Task 5）
 - Milestone 6: 上传与安全限制（Task 6）
@@ -35,6 +34,52 @@
 ---
 
 ## Task log
+
+### [2026-04-08] Task 3: 接入真实 LLM 客户端与基础编排器
+**Summary**
+- 新建 `LLMClient`，按 OpenAI Responses API 兼容形状调用 `POST /responses`
+- 新建 `llm_orchestrator.py`，接入阶段 prompt、摘要提取和 PRD 渲染封装
+- 补齐首版中文 prompt 文件：`system/template/style/positioning/content/features/extract_summary/render_prd`
+- 在测试中 mock 外部 HTTP，主链路保持真实客户端实现
+
+**Files changed**
+- `backend/app/services/llm_client.py`
+- `backend/app/services/llm_orchestrator.py`
+- `backend/app/prompts/system.md`
+- `backend/app/prompts/template.md`
+- `backend/app/prompts/style.md`
+- `backend/app/prompts/positioning.md`
+- `backend/app/prompts/content.md`
+- `backend/app/prompts/features.md`
+- `backend/app/prompts/extract_summary.md`
+- `backend/app/prompts/render_prd.md`
+- `backend/tests/test_llm_orchestrator.py`
+
+**Validation run**
+- 红灯确认：
+  - `cd backend && pytest tests/test_llm_orchestrator.py::test_build_chat_request_uses_chinese_and_stage_prompt -q`
+- 绿灯验证：
+  - `cd backend && pytest tests/test_llm_orchestrator.py -q`
+  - `cd backend && pytest -q`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 初始因 `app.services.llm_client` 缺失而导入失败
+- 绿灯阶段全部通过：
+  - prompt 装配、HTTP 请求形状、env 配置、中文错误、阶段回复、摘要提取与 PRD 渲染测试通过
+  - 后端当前全量测试通过（16 passed）
+
+**Notes**
+- `LLMClient` 同时支持 `OPENAI_API_KEY`、`OPENAI_MODEL`、`OPENAI_BASE_URL`、`OPENAI_TIMEOUT`
+- 文本提取优先读取 `output_text`，否则回退解析 `output[].content[].text`
+- 计划文件的 Task 3 Files 清单未列出阶段 prompt，但 Step 5 明确要求这些文件；本次按 Step 执行并保持在 prompts 目录内
+
+**Known issues**
+- `SESSION_CONTEXT.md` 的“最近重要提交”会在下一次任务收尾时补录本次 Task 3 提交 hash
+
+**Next suggested step**
+- 执行 Milestone 4 / Task 4：状态机、摘要刷新判断、摘要合并与消息路由
+- 先补 `tests/test_queue_and_generation.py` 或 plan 指定的红灯测试，再把真实 LLM 调用接进消息 API
 
 ### [2026-04-08] Task 2: 建立会话模型、数据库与基础 API
 **Summary**
@@ -202,6 +247,7 @@
 ## Verification history
 | Date | Scope | Commands | Result | Notes |
 |------|-------|----------|--------|-------|
+| 2026-04-08 | Task 3 red/green | `cd backend && pytest tests/test_llm_orchestrator.py::test_build_chat_request_uses_chinese_and_stage_prompt -q`; `cd backend && pytest tests/test_llm_orchestrator.py -q`; `cd backend && pytest -q` | Passed | 先确认 LLM 模块缺失，再补齐客户端、编排器和 prompts |
 | 2026-04-08 | Task 2 red/green | `cd backend && pytest tests/test_sessions_api.py::test_create_session_returns_token_and_default_state -q`; `cd backend && pytest tests/test_sessions_api.py -q`; `cd backend && pytest -q` | Passed | 先确认 `/api/sessions` 缺失，再补齐 create/get/patch 与 CORS |
 | 2026-04-08 | Task 1 red/green | `cd backend && pytest tests/test_health.py -q`; `cd frontend && npm test -- app-shell.test.tsx`; `cd backend && pytest -q`; `cd frontend && npm run build` | Passed | 红灯先确认缺失应用工厂与前端壳，随后绿灯通过 |
 | 2026-04-08 | 规则初始化 | N/A | N/A | 无代码，无需验证 |
@@ -211,8 +257,8 @@
 ## Handoff notes
 给下一个执行者的说明：
 
-- 当前最应该继续的任务：**Milestone 3 / Task 3 — 接入真实 LLM 客户端与 Prompt 编排**
-- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 3 部分
+- 当前最应该继续的任务：**Milestone 4 / Task 4 — 实现六阶段状态机、消息路由与摘要提取**
+- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 4 部分
 - 不要动的区域：`docs/superpowers/` 下的 spec 和 plan 文件
-- 当前最大风险：Task 3 会首次接入真实 LLM HTTP 协议与 prompt 文件，必须继续保持测试里 mock 外部依赖、主链路里使用真实客户端
-- 推荐先跑的验证命令：Task 3 的红灯从 `cd backend && pytest tests/test_llm_orchestrator.py -q` 开始
+- 当前最大风险：Task 4 会首次把状态机与真实 LLM 编排接进消息流，容易一口气把 Task 5 的队列/文档生成带进来
+- 推荐先跑的验证命令：Task 4 的红灯从 plan 指定的后端相关测试开始
