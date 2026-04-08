@@ -1,3 +1,5 @@
+from io import BytesIO
+
 from app import create_app
 
 
@@ -70,6 +72,31 @@ def test_message_route_returns_502_when_llm_fails(tmp_path, monkeypatch):
     assert response.get_json() == {"message": "暂时无法继续整理需求，请稍后重试。"}
 
 
+def test_message_route_returns_502_when_summary_extraction_fails(tmp_path, monkeypatch):
+    db_path = tmp_path / "summary-fail.db"
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
+    client = app.test_client()
+    token = client.post("/api/sessions").get_json()["token"]
+
+    class ReplyingLLMClient:
+        def generate(self, *, instructions: str, input_text: str, timeout: float = 30.0):
+            return type("Resp", (), {"text": "请继续告诉我你的网站主要给谁看。"})()
+
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: ReplyingLLMClient())
+    monkeypatch.setattr(
+        "app.routes.messages.extract_summary_update",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("LLM 调用超时")),
+    )
+
+    response = client.post(
+        f"/api/sessions/{token}/messages",
+        json={"content": "我是插画师", "stage_completed": True},
+    )
+
+    assert response.status_code == 502
+    assert response.get_json() == {"message": "暂时无法继续整理需求，请稍后重试。"}
+
+
 def test_sixth_active_session_is_queued(tmp_path, monkeypatch):
     db_path = tmp_path / "queue.db"
     app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
@@ -127,3 +154,102 @@ def test_document_endpoint_returns_chinese_summary(tmp_path, monkeypatch):
     assert document_response.status_code == 200
     assert "网站类型" in payload["summary_text"]
     assert "# 网站需求 PRD" in payload["prd_markdown"]
+
+
+def test_generation_request_skips_stage_reply_prompt(tmp_path, monkeypatch):
+    db_path = tmp_path / "doc-generate.db"
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
+    client = app.test_client()
+    token = client.post("/api/sessions").get_json()["token"]
+
+    client.patch(f"/api/sessions/{token}", json={"current_stage": "generate"})
+
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeLLMClient())
+    monkeypatch.setattr(
+        "app.services.document_renderer.LLMClient.from_env",
+        lambda: FakeLLMClient(),
+    )
+    monkeypatch.setattr(
+        "app.routes.messages.generate_stage_reply",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not generate stage reply")),
+    )
+
+    response = client.post(
+        f"/api/sessions/{token}/messages",
+        json={"content": "请开始生成 PRD", "generation_requested": True},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json()["message"] == "正在生成 PRD"
+
+    document_response = client.get(f"/api/sessions/{token}/document")
+    payload = document_response.get_json()
+
+    assert document_response.status_code == 200
+    assert payload["status"] == "ready"
+    assert "# 网站需求 PRD" in payload["prd_markdown"]
+
+
+def test_message_route_returns_502_when_document_render_fails(tmp_path, monkeypatch):
+    db_path = tmp_path / "doc-fail.db"
+    app = create_app({"TESTING": True, "DATABASE_URL": f"sqlite:///{db_path}"})
+    client = app.test_client()
+    token = client.post("/api/sessions").get_json()["token"]
+
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeLLMClient())
+    monkeypatch.setattr(
+        "app.routes.messages.render_document_bundle",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("LLM 调用超时")),
+    )
+
+    response = client.post(
+        f"/api/sessions/{token}/messages",
+        json={"content": "请直接生成 PRD", "generation_requested": True},
+    )
+
+    assert response.status_code == 502
+    assert response.get_json() == {"message": "暂时无法继续整理需求，请稍后重试。"}
+
+
+def test_document_generation_includes_attachment_list(tmp_path, monkeypatch):
+    db_path = tmp_path / "doc-attachments.db"
+    upload_dir = tmp_path / "uploads"
+    app = create_app(
+        {
+            "TESTING": True,
+            "DATABASE_URL": f"sqlite:///{db_path}",
+            "UPLOAD_DIR": str(upload_dir),
+        }
+    )
+    client = app.test_client()
+    token = client.post("/api/sessions").get_json()["token"]
+
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeLLMClient())
+    monkeypatch.setattr(
+        "app.services.document_renderer.LLMClient.from_env",
+        lambda: FakeLLMClient(),
+    )
+
+    upload_response = client.post(
+        f"/api/sessions/{token}/attachments",
+        data={
+            "file": (BytesIO(b"binary"), "reference.png"),
+            "caption": "极简排版参考",
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload_response.status_code == 201
+
+    response = client.post(
+        f"/api/sessions/{token}/messages",
+        json={"content": "请直接生成 PRD", "generation_requested": True},
+    )
+
+    assert response.status_code == 202
+
+    document_response = client.get(f"/api/sessions/{token}/document")
+    payload = document_response.get_json()
+
+    assert "## 参考附件" in payload["prd_markdown"]
+    assert "reference.png" in payload["prd_markdown"]
+    assert "极简排版参考" in payload["prd_markdown"]

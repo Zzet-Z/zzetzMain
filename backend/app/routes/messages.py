@@ -1,7 +1,13 @@
 from flask import Blueprint, current_app, jsonify, request
 
 from ..db import SessionLocal
-from ..models import DocumentRecord, MessageRecord, SessionRecord, SummarySnapshot
+from ..models import (
+    AttachmentRecord,
+    DocumentRecord,
+    MessageRecord,
+    SessionRecord,
+    SummarySnapshot,
+)
 from ..services.document_renderer import render_document_bundle
 from ..services.intake_state_machine import next_stage_for_session
 from ..services.llm_client import LLMClient
@@ -57,6 +63,46 @@ def create_message(token: str):
     )
     summary_payload = {} if latest_summary is None else latest_summary.payload
 
+    if generation_requested:
+        document = (
+            db.query(DocumentRecord)
+            .filter(DocumentRecord.session_token == token)
+            .order_by(DocumentRecord.id.desc())
+            .first()
+        )
+        attachments = (
+            db.query(AttachmentRecord)
+            .filter(AttachmentRecord.session_token == token)
+            .order_by(AttachmentRecord.id.asc())
+            .all()
+        )
+        session.status = "generating_document"
+        try:
+            summary_text, prd_markdown = render_document_bundle(
+                summary_payload=summary_payload,
+                attachments=[
+                    {"file_name": item.file_name, "caption": item.caption}
+                    for item in attachments
+                ],
+            )
+        except RuntimeError as exc:
+            session.last_error = str(exc)
+            db.commit()
+            return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
+        document.version += 1
+        document.status = "ready"
+        document.summary_text = summary_text
+        document.prd_markdown = prd_markdown
+        session.status = "completed"
+        db.commit()
+        return jsonify(
+            {
+                "session_status": "generating_document",
+                "message": "正在生成 PRD",
+                "poll_after_ms": 5000,
+            }
+        ), 202
+
     client = LLMClient.from_env()
     try:
         assistant_reply = generate_stage_reply(
@@ -85,12 +131,17 @@ def create_message(token: str):
         stage_completed=stage_completed,
         generation_requested=generation_requested,
     ):
-        extracted = extract_summary_update(
-            client,
-            current_stage=session.current_stage,
-            existing_summary=summary_payload,
-            recent_messages=[{"role": "user", "content": content}],
-        )
+        try:
+            extracted = extract_summary_update(
+                client,
+                current_stage=session.current_stage,
+                existing_summary=summary_payload,
+                recent_messages=[{"role": "user", "content": content}],
+            )
+        except RuntimeError as exc:
+            session.last_error = str(exc)
+            db.commit()
+            return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
         merged_summary = merge_summary(summary_payload, extracted)
         db.add(SummarySnapshot(session_token=token, payload=merged_summary))
     else:
@@ -103,32 +154,6 @@ def create_message(token: str):
         summary_payload=merged_summary,
         user_action=user_action,
     )
-
-    if generation_requested:
-        document = (
-            db.query(DocumentRecord)
-            .filter(DocumentRecord.session_token == token)
-            .order_by(DocumentRecord.id.desc())
-            .first()
-        )
-        session.status = "generating_document"
-        summary_text, prd_markdown = render_document_bundle(
-            summary_payload=merged_summary,
-            attachments=[],
-        )
-        document.version += 1
-        document.status = "ready"
-        document.summary_text = summary_text
-        document.prd_markdown = prd_markdown
-        session.status = "completed"
-        db.commit()
-        return jsonify(
-            {
-                "session_status": "generating_document",
-                "message": "正在生成 PRD",
-                "poll_after_ms": 5000,
-            }
-        ), 202
 
     db.commit()
     return jsonify(

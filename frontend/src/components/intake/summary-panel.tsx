@@ -33,6 +33,15 @@ export function SummaryPanel({
   summaryPayload: Record<string, unknown> | undefined;
   documentState: DocumentPayload | null;
 }) {
+  const documentStatusText =
+    session.status === "generating_document"
+      ? "正在生成 PRD"
+      : DOCUMENT_STATUS_LABELS[documentState?.status as keyof typeof DOCUMENT_STATUS_LABELS] ??
+        DOCUMENT_STATUS_LABELS[session.document?.status as keyof typeof DOCUMENT_STATUS_LABELS] ??
+        documentState?.status ??
+        session.document?.status ??
+        "待生成";
+
   return (
     <aside className="rounded-[24px] border border-white/10 bg-white/5 p-4">
       <h2 className="text-[21px] font-semibold text-white">摘要</h2>
@@ -57,14 +66,7 @@ export function SummaryPanel({
         </div>
       </dl>
       <div className="mt-5 rounded-[18px] bg-black/25 p-4 text-sm text-white/78">
-        <p>
-          文档状态：
-          {DOCUMENT_STATUS_LABELS[documentState?.status as keyof typeof DOCUMENT_STATUS_LABELS] ??
-            DOCUMENT_STATUS_LABELS[session.document?.status as keyof typeof DOCUMENT_STATUS_LABELS] ??
-            documentState?.status ??
-            session.document?.status ??
-            "待生成"}
-        </p>
+        <p>文档状态：{documentStatusText}</p>
         {documentState?.summary_text ? (
           <pre className="mt-3 whitespace-pre-wrap font-inherit text-white/72">
             {documentState.summary_text}

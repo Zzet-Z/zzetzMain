@@ -5,6 +5,9 @@ from pathlib import Path
 
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
+STAGE_REPLY_TIMEOUT = 90.0
+SUMMARY_EXTRACTION_TIMEOUT = 90.0
+DOCUMENT_RENDER_TIMEOUT = 45.0
 
 
 def load_prompt(name: str) -> str:
@@ -32,6 +35,7 @@ def generate_stage_reply(client, *, stage: str, summary_payload: dict, recent_me
     response = client.generate(
         instructions=request["system_prompt"],
         input_text=request["context_text"],
+        timeout=STAGE_REPLY_TIMEOUT,
     )
     return response.text
 
@@ -42,6 +46,7 @@ def extract_summary_update(client, *, current_stage: str, existing_summary: dict
     response = client.generate(
         instructions=instructions,
         input_text=f"当前阶段：{current_stage}\n已有摘要：{existing_summary}\n新增对话：{history}",
+        timeout=SUMMARY_EXTRACTION_TIMEOUT,
     )
     raw = response.text.strip()
     if raw.startswith("```"):
@@ -61,10 +66,16 @@ def render_prd_with_llm(client, *, summary_payload: dict, attachments: list[dict
     response = client.generate(
         instructions=instructions,
         input_text=f"结构化摘要：{summary_payload}\n附件：{attachment_text}",
-        timeout=45.0,
+        timeout=DOCUMENT_RENDER_TIMEOUT,
     )
     summary_text = (
         f"网站类型：{summary_payload.get('website_type') or '未确定'}\n"
         f"视觉方向：{summary_payload.get('visual_direction') or '未确定'}"
     )
-    return summary_text, response.text
+    prd_markdown = response.text
+    if attachments:
+        attachment_section = "\n".join(
+            f"- {item['file_name']}：{item.get('caption', '')}" for item in attachments
+        )
+        prd_markdown = f"{prd_markdown.rstrip()}\n\n## 参考附件\n{attachment_section}\n"
+    return summary_text, prd_markdown

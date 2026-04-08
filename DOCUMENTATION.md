@@ -6,7 +6,7 @@
 ## Current status
 - Current milestone: Milestone 9 — 最终验证与文档
 - Current task: Task 9 — 全量回归与人工验收
-- Status: Task 8 completed, Task 9 ready to start
+- Status: Task 9 completed
 - Last updated: 2026-04-08
 
 ---
@@ -21,7 +21,7 @@
 - （无）
 
 ### Not started
-- Milestone 9: 最终验证与文档（Task 9）
+- （无）
 
 ### Blocked
 - （无）
@@ -29,6 +29,79 @@
 ---
 
 ## Task log
+
+### [2026-04-08] Task 9: 最终文档、回归验证与人工验收
+**Summary**
+- 复核真实外部模型连通性：直接对 `OPENAI_BASE_URL` 做了 `chat/completions`、`/responses` 和仓库内 `LLMClient.generate()` 调用，确认阿里云百炼兼容层和当前密钥可用
+- 真实链路验收时发现阶段回复与摘要提取在百炼兼容层上存在明显慢响应；将 `generate_stage_reply` 和 `extract_summary_update` 的超时提升到 90 秒，并为 `LLMClient.generate()` 增加一次超时重试
+- 修正生成阶段路由：`generation_requested=true` 时直接进入文档渲染，不再错误地尝试读取不存在的 `backend/app/prompts/generate.md`
+- 修正前端回访链路：已完成会话重新打开时也会拉取 `/document`，因此摘要面板现在能展示文档摘要文本，而不只是 `文档状态：已生成`
+- 用干净的 `backend/task9-validation.db` 重新跑完整人工验收链路，确认首页 CTA、模板/风格选择、图片上传、`positioning -> content -> features -> generate -> completed`、自动 PRD 生成、中文摘要、中文 PRD、附件段落和 token 回访均可用
+- 复核 `README.md` 与仓库结构、`Makefile`、`backend/.env` / `python run.py` / `frontend npm run dev` 一致，无需额外修订；spec 状态名与当前实现一致，也无需改动只读 spec
+
+**Files changed**
+- `backend/app/routes/messages.py`
+- `backend/app/services/llm_client.py`
+- `backend/app/services/llm_orchestrator.py`
+- `backend/tests/test_llm_orchestrator.py`
+- `backend/tests/test_queue_and_generation.py`
+- `frontend/src/routes/session-page.tsx`
+- `frontend/src/test/session-flow.test.tsx`
+- `frontend/src/components/intake/summary-panel.tsx`
+- `frontend/src/test/home-page.test.tsx`
+
+**Validation run**
+- 外部模型直连排查：
+  - 使用 `backend/.env` 中的真实配置直连 `chat/completions`，返回 200 与“连通正常”
+  - 使用同一配置直连 `/responses`，返回 200 与“responses 正常”
+  - 直接调用仓库内 `LLMClient.generate()`，返回“客户端正常”
+- 红灯确认：
+  - `cd backend && pytest tests/test_llm_orchestrator.py::test_generate_stage_reply_uses_extended_timeout -q`
+  - `cd backend && pytest tests/test_llm_orchestrator.py::test_extract_summary_update_uses_extended_timeout -q`
+  - `cd backend && pytest tests/test_llm_orchestrator.py::test_llm_client_retries_once_after_timeout -q`
+  - `cd backend && pytest tests/test_queue_and_generation.py::test_generation_request_skips_stage_reply_prompt -q`
+  - `cd frontend && npm test -- session-flow.test.tsx`
+- 绿灯验证：
+  - `cd backend && pytest -q`
+  - `cd frontend && npm test`
+  - `cd frontend && npm run build`
+  - `agent-browser` 真实浏览器验收：
+    - iPhone 14 视口打开首页，确认 CTA 可见且 `document.documentElement.scrollWidth <= window.innerWidth`
+    - 通过浏览器内真实鼠标事件触发首页 CTA，跳转到 `/session/:token`
+    - 在真实 session 页面完成模板 `个人作品页`、风格 `极简高级`
+    - 通过浏览器文件输入注入真实 PNG 数据，确认附件入口可上传并显示 `reference.png`
+    - 使用真实 LLM 主链路把 session 推进到 `generate`
+    - 重新打开同一 token 页面，确认 `当前状态：已完成`、`文档状态：已生成`，且摘要区能看到中文文档摘要
+  - 文档接口验收：
+    - `GET /api/sessions/_fH3p3FAjjyZr6O9YDZImQkFZRD8A_wO/document`
+    - 返回 `status=ready`
+    - `prd_markdown` 为中文 PRD，并包含 `## 参考附件` 与 `reference.png`
+
+**Validation result**
+- 红灯阶段符合预期：
+  - 阶段回复仍使用较短超时，无法覆盖百炼兼容层的真实慢响应
+  - `LLMClient.generate()` 在超时后不会重试
+  - 前端自动 PRD 生成请求会误走 `generate_stage_reply()`，触发缺失的 `generate.md`
+  - 已完成会话重新打开时不会重新获取文档摘要
+- 绿灯阶段全部通过：
+  - 后端全量测试通过（35 passed）
+  - 前端全量测试通过（5 files, 9 tests）
+  - 前端生产构建通过
+  - 真实浏览器下，完整链路可以闭环到 `completed`
+  - 文档接口会返回中文摘要、中文 PRD，并带有附件清单
+
+**Notes**
+- `agent-browser` 的标准 `click` 在当前 React/Vite 页面上对部分按钮不稳定；本次 Task 9 的浏览器验收继续使用浏览器上下文里的真实鼠标事件派发，但仍由 `agent-browser` 驱动
+- 为避免历史开发数据占满 5 个活跃会话名额，本次人工验收使用独立的 `backend/task9-validation.db`
+- 当前 `summary_text` 只展示文档级摘要（网站类型 / 视觉方向）；结构化摘要字段仍通过 session payload 单独展示
+
+**Known issues**
+- 真实 LLM 主链路可用，但在百炼兼容层上的响应时间仍偏长；一次阶段推进常见耗时在几十秒到一百秒级
+- 已完成会话重新打开后，附件列表仍只显示本地上传态，不会自动从后端回放到附件面板；当前验收以文档中的 `参考附件` 段落作为附件持久化依据
+
+**Next suggested step**
+- MVP 计划内 Task 1–9 已完成，后续如继续迭代，优先考虑把长耗时的摘要提取/文档生成改成更显式的轮询任务，而不是阻塞单次消息请求
+- 如果继续做体验优化，优先补已完成会话的历史消息与附件回放，再考虑更细的错误诊断与耗时提示
 
 ### [2026-04-08] Task 8: 实现需求梳理页六组件与前后端接线
 **Summary**

@@ -41,6 +41,7 @@ export function SessionPage({
   const [attachments, setAttachments] = useState<Array<{ fileName: string; caption: string }>>([]);
   const [isSending, setIsSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [hasRequestedGeneration, setHasRequestedGeneration] = useState(false);
 
   useEffect(() => {
     if (!token || initialState?.status === "queued") {
@@ -72,7 +73,10 @@ export function SessionPage({
   }, [initialState?.status, token]);
 
   useEffect(() => {
-    if (!token || session?.status !== "generating_document") {
+    if (
+      !token ||
+      (session?.status !== "generating_document" && session?.status !== "completed")
+    ) {
       return;
     }
 
@@ -98,6 +102,76 @@ export function SessionPage({
       window.clearInterval(timer);
     };
   }, [session?.status, token]);
+
+  useEffect(() => {
+    setHasRequestedGeneration(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      !session ||
+      session.current_stage !== "generate" ||
+      session.status !== "active" ||
+      hasRequestedGeneration ||
+      isSending
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function requestGeneration() {
+      setHasRequestedGeneration(true);
+      setIsSending(true);
+
+      try {
+        const payload = await sendMessage(token, {
+          content: "请根据当前摘要开始生成 PRD。",
+          generation_requested: true,
+        });
+        if (cancelled) {
+          return;
+        }
+
+        const assistantContent = payload.assistant_reply ?? payload.message;
+        if (assistantContent) {
+          setMessages((current) => [
+            ...current,
+            { role: "assistant", content: assistantContent },
+          ]);
+        }
+        setSession((current) => ({
+          ...(current as SessionPayload),
+          current_stage: payload.current_stage ?? current?.current_stage ?? "generate",
+          status: payload.session_status ?? current?.status ?? "active",
+          queuePosition: payload.queue_position ?? current?.queuePosition,
+        }));
+        setErrorMessage("");
+      } catch (_error) {
+        if (!cancelled) {
+          setHasRequestedGeneration(false);
+          setErrorMessage("PRD 生成请求失败，请稍后重试。");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSending(false);
+        }
+      }
+    }
+
+    void requestGeneration();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasRequestedGeneration,
+    isSending,
+    session?.current_stage,
+    session?.status,
+    token,
+  ]);
 
   if (session?.status === "queued") {
     return (

@@ -41,27 +41,33 @@ class LLMClient:
         input_text: str,
         timeout: float | None = None,
     ) -> LLMResponse:
-        try:
-            response = httpx.post(
-                f"{self.base_url}/responses",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "instructions": instructions,
-                    "input": input_text,
-                },
-                timeout=self.timeout if timeout is None else timeout,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            return LLMResponse(text=_extract_text(payload))
-        except httpx.TimeoutException as exc:
-            raise RuntimeError("LLM 调用超时") from exc
-        except httpx.HTTPError as exc:
-            raise RuntimeError("LLM 调用失败") from exc
+        request_timeout = self.timeout if timeout is None else timeout
+
+        for attempt in range(2):
+            try:
+                response = httpx.post(
+                    f"{self.base_url}/responses",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self.model,
+                        "instructions": instructions,
+                        "input": input_text,
+                    },
+                    timeout=request_timeout,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                return LLMResponse(text=_extract_text(payload))
+            except httpx.TimeoutException as exc:
+                if attempt == 1:
+                    raise RuntimeError("LLM 调用超时") from exc
+            except httpx.HTTPError as exc:
+                raise RuntimeError("LLM 调用失败") from exc
+
+        raise RuntimeError("LLM 调用超时")
 
 
 def _extract_text(payload: dict) -> str:

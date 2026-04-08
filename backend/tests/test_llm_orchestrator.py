@@ -122,6 +122,31 @@ def test_llm_client_raises_chinese_runtime_error_on_timeout(monkeypatch):
         raise AssertionError("expected RuntimeError")
 
 
+def test_llm_client_retries_once_after_timeout(monkeypatch):
+    attempts = {"count": 0}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"output": [{"content": [{"text": "第二次成功"}]}]}
+
+    def fake_post(url, headers, json, timeout):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise httpx.TimeoutException("boom")
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.llm_client.httpx.post", fake_post)
+    client = LLMClient(api_key="test-key", model="gpt-4.1-mini")
+
+    result = client.generate(instructions="请使用中文", input_text="我是插画师")
+
+    assert attempts["count"] == 2
+    assert result.text == "第二次成功"
+
+
 def test_llm_client_raises_chinese_runtime_error_on_http_error(monkeypatch):
     class FakeResponse:
         def raise_for_status(self):
@@ -163,6 +188,22 @@ def test_generate_stage_reply_passes_prompt_to_client():
     assert reply == "请先告诉我，你希望网站主要打动谁？"
 
 
+def test_generate_stage_reply_uses_extended_timeout():
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            assert timeout == 90.0
+            return type("Response", (), {"text": "请继续补充目标受众。"})()
+
+    reply = generate_stage_reply(
+        FakeClient(),
+        stage="positioning",
+        summary_payload={"website_type": "个人作品页"},
+        recent_messages=[{"role": "user", "content": "我是插画师"}],
+    )
+
+    assert reply == "请继续补充目标受众。"
+
+
 def test_extract_summary_update_parses_json_code_fence():
     class FakeClient:
         def generate(self, *, instructions, input_text, timeout=30.0):
@@ -199,6 +240,22 @@ def test_extract_summary_update_returns_existing_summary_on_invalid_json():
     )
 
     assert result == existing_summary
+
+
+def test_extract_summary_update_uses_extended_timeout():
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            assert timeout == 90.0
+            return type("Response", (), {"text": '{"positioning_ready": true}'})()
+
+    result = extract_summary_update(
+        FakeClient(),
+        current_stage="positioning",
+        existing_summary={},
+        recent_messages=[{"role": "user", "content": "我想先建立信任"}],
+    )
+
+    assert result["positioning_ready"] is True
 
 
 def test_extract_summary_prompt_requires_ready_flags():

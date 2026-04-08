@@ -42,7 +42,7 @@ test("首页展示五段式内容和主 CTA", () => {
   expect(screen.getByRole("heading", { level: 2, name: "准备开始你的首页梳理了吗？" })).toBeInTheDocument();
 });
 
-test("首页 CTA 点击后进入 loading 状态", () => {
+test("首页 CTA 点击后进入 loading 状态", async () => {
   render(
     <MemoryRouter initialEntries={["/"]}>
       <App />
@@ -51,5 +51,5 @@ test("首页 CTA 点击后进入 loading 状态", () => {
 
   fireEvent.click(screen.getAllByRole("button", { name: "开始梳理我的网站" })[0]);
 
-  expect(screen.getAllByRole("button", { name: "正在准备梳理页..." })).toHaveLength(2);
+  expect(await screen.findAllByRole("button", { name: "正在准备梳理页..." })).toHaveLength(2);
 });
