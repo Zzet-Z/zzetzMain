@@ -2,20 +2,39 @@ from io import BytesIO
 from pathlib import Path
 
 from app import create_app
+from app.db import SessionLocal
+from app.models import DocumentRecord, SessionRecord
+
+
+def build_app(tmp_path):
+    return create_app(
+        {
+            "TESTING": True,
+            "DATABASE_URL": f"sqlite:///{tmp_path / 'upload.db'}",
+            "UPLOAD_DIR": str(tmp_path / "uploads"),
+            "ADMIN_TOKEN": "admin-secret",
+        }
+    )
+
+
+def seed_session(app, token: str = "invite-token"):
+    with app.app_context():
+        db = SessionLocal()
+        try:
+            session = SessionRecord(token=token, status="awaiting_user")
+            db.add(session)
+            db.add(DocumentRecord(session_token=token, revision_number=1))
+            db.commit()
+        finally:
+            db.close()
+    return token
 
 
 def test_upload_respects_file_constraints(tmp_path):
-    db_path = tmp_path / "upload.db"
     upload_dir = tmp_path / "uploads"
-    app = create_app(
-        {
-            "TESTING": True,
-            "DATABASE_URL": f"sqlite:///{db_path}",
-            "UPLOAD_DIR": str(upload_dir),
-        }
-    )
+    app = build_app(tmp_path)
     client = app.test_client()
-    token = client.post("/api/sessions").get_json()["token"]
+    token = seed_session(app)
 
     response = client.post(
         f"/api/sessions/{token}/attachments",
@@ -31,16 +50,9 @@ def test_upload_respects_file_constraints(tmp_path):
 
 
 def test_upload_rejects_non_image_file(tmp_path):
-    db_path = tmp_path / "upload.db"
-    app = create_app(
-        {
-            "TESTING": True,
-            "DATABASE_URL": f"sqlite:///{db_path}",
-            "UPLOAD_DIR": str(tmp_path / "uploads"),
-        }
-    )
+    app = build_app(tmp_path)
     client = app.test_client()
-    token = client.post("/api/sessions").get_json()["token"]
+    token = seed_session(app)
 
     response = client.post(
         f"/api/sessions/{token}/attachments",
@@ -53,16 +65,9 @@ def test_upload_rejects_non_image_file(tmp_path):
 
 
 def test_upload_rejects_file_over_8mb(tmp_path):
-    db_path = tmp_path / "upload.db"
-    app = create_app(
-        {
-            "TESTING": True,
-            "DATABASE_URL": f"sqlite:///{db_path}",
-            "UPLOAD_DIR": str(tmp_path / "uploads"),
-        }
-    )
+    app = build_app(tmp_path)
     client = app.test_client()
-    token = client.post("/api/sessions").get_json()["token"]
+    token = seed_session(app)
 
     response = client.post(
         f"/api/sessions/{token}/attachments",
@@ -78,16 +83,9 @@ def test_upload_rejects_file_over_8mb(tmp_path):
 
 
 def test_upload_rejects_when_attachment_count_exceeds_limit(tmp_path):
-    db_path = tmp_path / "upload.db"
-    app = create_app(
-        {
-            "TESTING": True,
-            "DATABASE_URL": f"sqlite:///{db_path}",
-            "UPLOAD_DIR": str(tmp_path / "uploads"),
-        }
-    )
+    app = build_app(tmp_path)
     client = app.test_client()
-    token = client.post("/api/sessions").get_json()["token"]
+    token = seed_session(app)
 
     for index in range(12):
         response = client.post(
