@@ -1,31 +1,46 @@
+import type { SessionAttachment } from "../../lib/types";
+
 export function AttachmentPanel({
   attachments,
+  disabled,
   onUpload,
 }: {
-  attachments: Array<{ fileName: string; caption: string }>;
+  attachments: SessionAttachment[];
+  disabled: boolean;
   onUpload: (file: File) => void;
 }) {
   return (
-    <section className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-      <h2 className="text-[21px] font-semibold text-white">图片附件</h2>
-      <input
-        accept="image/png,image/jpeg,image/webp"
-        aria-label="上传参考图片"
-        className="mt-3 block w-full text-sm text-white/80 file:mr-4 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:text-black"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) onUpload(file);
-        }}
-        type="file"
-      />
-      <div className="mt-3 space-y-2">
-        {attachments.map((item) => (
-          <div key={item.fileName} className="rounded-[18px] bg-black/25 p-3 text-sm text-white/78">
-            {item.fileName}
-            {item.caption ? ` - ${item.caption}` : ""}
-          </div>
-        ))}
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[12px] uppercase tracking-[0.2em] text-white/40">参考附件</p>
+        <input
+          accept="image/png,image/jpeg,image/webp"
+          aria-label="上传参考图片"
+          className="block max-w-[220px] text-[12px] text-white/72 file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-[12px] file:text-black disabled:opacity-40"
+          disabled={disabled}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              onUpload(file);
+              event.currentTarget.value = "";
+            }
+          }}
+          type="file"
+        />
       </div>
-    </section>
+      {attachments.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {attachments.map((item) => (
+            <div
+              key={`${item.file_name}-${item.created_at ?? item.id ?? "pending"}`}
+              className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[12px] text-white/76"
+            >
+              {item.file_name}
+              {item.caption ? ` · ${item.caption}` : ""}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }

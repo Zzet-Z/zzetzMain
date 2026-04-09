@@ -1,47 +1,73 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { AttachmentPanel } from "../components/intake/attachment-panel";
 import { ChatPanel } from "../components/intake/chat-panel";
-import { StepHeader } from "../components/intake/step-header";
-import { StyleSelector } from "../components/intake/style-selector";
-import { SummaryPanel } from "../components/intake/summary-panel";
-import { TemplateSelector } from "../components/intake/template-selector";
-import { getDocument, getSession, sendMessage, updateSession, uploadAttachment } from "../lib/api";
-import type { AttachmentPayload, DocumentPayload, SessionPayload } from "../lib/types";
+import {
+  getDocument,
+  getSession,
+  getSessionMessages,
+  sendMessage,
+  uploadAttachment,
+} from "../lib/api";
+import type {
+  AttachmentPayload,
+  DocumentPayload,
+  SessionAttachment,
+  SessionMessage,
+  SessionPayload,
+  SessionStatus,
+} from "../lib/types";
+
+function createInitialSession(token: string, status: SessionStatus, queuePosition?: number): SessionPayload {
+  return {
+    token,
+    status,
+    messages: [],
+    attachments: [],
+    current_stage: "template",
+    document: { status: "pending" },
+    queuePosition,
+    queue_position: queuePosition,
+    has_more: false,
+    oldest_message_id: null,
+    successor_token: null,
+  };
+}
 
 export function SessionPage({
   initialState,
 }: {
-  initialState?: { status: string; queuePosition?: number };
+  initialState?: { status: SessionStatus | "awaiting_user" | "expired"; queuePosition?: number };
 }) {
   const { token = "" } = useParams();
   const [session, setSession] = useState<SessionPayload | null>(
     initialState
-      ? ({
+      ? createInitialSession(
           token,
-          status: initialState.status as SessionPayload["status"],
-          current_stage: "template",
-          selected_template: null,
-          selected_style: null,
-          summary: { payload: {} },
-          document: { status: "pending" },
-          queuePosition: initialState.queuePosition,
-        } as SessionPayload)
+          initialState.status as SessionStatus,
+          initialState.queuePosition,
+        )
       : null,
   );
   const [documentState, setDocumentState] = useState<DocumentPayload | null>(null);
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
-    {
-      role: "assistant",
-      content: "先从模板开始。你可以直接选一个，也可以跳过后继续梳理。",
-    },
-  ]);
+  const [messages, setMessages] = useState<SessionMessage[]>(session?.messages ?? []);
+  const [attachments, setAttachments] = useState<SessionAttachment[]>(session?.attachments ?? []);
   const [draft, setDraft] = useState("");
-  const [attachments, setAttachments] = useState<Array<{ fileName: string; caption: string }>>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [hasRequestedGeneration, setHasRequestedGeneration] = useState(false);
+  const sessionStatus = session?.status as string | undefined;
+
+  const composerDisabled =
+    sessionStatus === "completed" ||
+    sessionStatus === "expired" ||
+    sessionStatus === "failed" ||
+    sessionStatus === "generating_document";
+
+  useEffect(() => {
+    setMessages(session?.messages ?? []);
+    setAttachments(session?.attachments ?? []);
+  }, [session?.attachments, session?.messages]);
 
   useEffect(() => {
     if (!token || initialState?.status === "queued") {
@@ -53,19 +79,24 @@ export function SessionPage({
     async function load() {
       try {
         const payload = await getSession(token);
-        if (!cancelled) {
-          setSession(payload);
-          setErrorMessage("");
+        if (cancelled) {
+          return;
         }
+
+        setSession(payload);
+        setMessages(payload.messages ?? []);
+        setAttachments(payload.attachments ?? []);
+        setErrorMessage("");
       } catch (_error) {
         if (!cancelled) {
-          setErrorMessage("暂时无法读取当前进度，请稍后刷新重试。");
+          setErrorMessage("暂时无法读取当前会话，请稍后刷新重试。");
         }
       }
     }
 
     void load();
     const timer = window.setInterval(() => void load(), 3000);
+
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -73,10 +104,7 @@ export function SessionPage({
   }, [initialState?.status, token]);
 
   useEffect(() => {
-    if (
-      !token ||
-      (session?.status !== "generating_document" && session?.status !== "completed")
-    ) {
+    if (!token || (session?.status !== "generating_document" && session?.status !== "completed")) {
       return;
     }
 
@@ -103,81 +131,147 @@ export function SessionPage({
     };
   }, [session?.status, token]);
 
-  useEffect(() => {
-    setHasRequestedGeneration(false);
-  }, [token]);
-
-  useEffect(() => {
-    if (
-      !token ||
-      !session ||
-      session.current_stage !== "generate" ||
-      (session.status !== "active" && session.status !== "in_progress") ||
-      hasRequestedGeneration ||
-      isSending
-    ) {
+  async function handleSend() {
+    if (!token || !draft.trim() || isSending || composerDisabled) {
       return;
     }
 
-    let cancelled = false;
+    const userContent = draft.trim();
+    const optimisticUserMessage: SessionMessage = {
+      id: Date.now(),
+      role: "user",
+      content: userContent,
+      delivery_status: "final",
+    };
 
-    async function requestGeneration() {
-      setHasRequestedGeneration(true);
-      setIsSending(true);
+    setMessages((current) => [...current, optimisticUserMessage]);
+    setDraft("");
+    setIsSending(true);
 
-      try {
-        const payload = await sendMessage(token, {
-          content: "请根据当前摘要开始生成 PRD。",
-          generation_requested: true,
-        });
-        if (cancelled) {
-          return;
-        }
+    try {
+      const payload = await sendMessage(token, { content: userContent });
+      const assistantContent = payload.assistant_message ?? payload.assistant_reply ?? payload.message;
 
-        const assistantContent = payload.assistant_reply ?? payload.message;
-        if (assistantContent) {
-          setMessages((current) => [
-            ...current,
-            { role: "assistant", content: assistantContent },
-          ]);
-        }
-        setSession((current) => ({
-          ...(current as SessionPayload),
-          current_stage: payload.current_stage ?? current?.current_stage ?? "generate",
-          status: payload.session_status ?? current?.status ?? "active",
-          queuePosition: payload.queue_position ?? current?.queuePosition,
-        }));
-        setErrorMessage("");
-      } catch (_error) {
-        if (!cancelled) {
-          setHasRequestedGeneration(false);
-          setErrorMessage("PRD 生成请求失败，请稍后重试。");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsSending(false);
-        }
+      if (assistantContent) {
+        setMessages((current) => [
+          ...current,
+          {
+            id: Date.now() + 1,
+            role: "assistant",
+            content: assistantContent,
+            delivery_status: "final",
+          },
+        ]);
       }
+
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              status: payload.session_status ?? current.status,
+              queuePosition: payload.queue_position ?? current.queuePosition,
+              queue_position: payload.queue_position ?? current.queue_position,
+              conversation_intent: payload.conversation_intent ?? current.conversation_intent,
+              successor_token: payload.successor_token ?? current.successor_token,
+            }
+          : current,
+      );
+      setErrorMessage("");
+    } catch (_error) {
+      setMessages((current) => current.filter((message) => message.id !== optimisticUserMessage.id));
+      setDraft(userContent);
+      setErrorMessage("暂时无法继续整理需求，请稍后重试。");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  async function handleConfirmGenerate() {
+    if (!token || isSending || composerDisabled) {
+      return;
     }
 
-    void requestGeneration();
+    setIsSending(true);
+    try {
+      const payload = await sendMessage(token, {
+        content: "请开始生成最终需求文档",
+        confirm_generate: true,
+      });
+      const assistantContent = payload.assistant_message ?? payload.assistant_reply ?? payload.message;
+      if (assistantContent) {
+        setMessages((current) => [
+          ...current,
+          {
+            id: Date.now(),
+            role: "assistant",
+            content: assistantContent,
+            delivery_status: "final",
+          },
+        ]);
+      }
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              status: payload.session_status ?? current.status,
+              conversation_intent: payload.conversation_intent ?? "continue",
+            }
+          : current,
+      );
+      setErrorMessage("");
+    } catch (_error) {
+      setErrorMessage("最终文档生成请求失败，请稍后重试。");
+    } finally {
+      setIsSending(false);
+    }
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    hasRequestedGeneration,
-    isSending,
-    session?.current_stage,
-    session?.status,
-    token,
-  ]);
+  async function handleUpload(file: File) {
+    if (!token || composerDisabled) {
+      return;
+    }
+
+    try {
+      const payload: AttachmentPayload = await uploadAttachment(token, file, "参考图片");
+      setAttachments((current) => [...current, payload]);
+      setErrorMessage("");
+    } catch (_error) {
+      setErrorMessage("图片上传失败，请换一张图片后重试。");
+    }
+  }
+
+  async function handleLoadMore() {
+    if (!token || !session?.oldest_message_id || isLoadingMore) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    try {
+      const olderMessages = await getSessionMessages(token, session.oldest_message_id);
+      setMessages((current) => [...olderMessages, ...current]);
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              has_more: olderMessages.length >= 50,
+              oldest_message_id: olderMessages[0]?.id ?? current.oldest_message_id,
+            }
+          : current,
+      );
+      setErrorMessage("");
+    } catch (_error) {
+      setErrorMessage("加载历史消息失败，请稍后再试。");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }
 
   if (session?.status === "queued") {
+    const queuePosition = session.queuePosition ?? session.queue_position ?? 0;
     return (
       <main className="px-4 py-6 text-white">
         <p>当前正在为其他用户整理网站需求，你已进入等待队列。</p>
-        <p>你前面还有 {session.queuePosition} 人。</p>
+        <p>你前面还有 {queuePosition} 人。</p>
       </main>
     );
   }
@@ -186,125 +280,68 @@ export function SessionPage({
     return <main className="px-4 py-6 text-white">正在加载...</main>;
   }
 
-  const currentStage = session.current_stage;
-
-  async function handleTemplateSelect(value: string) {
-    try {
-      const payload = await updateSession(token, {
-        selected_template: value === "跳过" ? null : value,
-        current_stage: "style",
-      });
-      setSession((current) => ({ ...(current as SessionPayload), ...payload }));
-      setErrorMessage("");
-    } catch (_error) {
-      setErrorMessage("模板更新失败，请稍后重试。");
-    }
-  }
-
-  async function handleStyleSelect(value: string) {
-    try {
-      const payload = await updateSession(token, {
-        selected_style: value === "跳过" ? null : value,
-        current_stage: "positioning",
-      });
-      setSession((current) => ({ ...(current as SessionPayload), ...payload }));
-      setErrorMessage("");
-    } catch (_error) {
-      setErrorMessage("风格更新失败，请稍后重试。");
-    }
-  }
-
-  async function handleSend() {
-    if (!draft.trim() || isSending) {
-      return;
-    }
-
-    const userContent = draft.trim();
-    setMessages((current) => [...current, { role: "user", content: userContent }]);
-    setDraft("");
-    setIsSending(true);
-
-    try {
-      const payload = await sendMessage(token, {
-        content: userContent,
-        stage_completed: currentStage !== "generate",
-        generation_requested: currentStage === "generate",
-      });
-      const assistantContent = payload.assistant_reply ?? payload.message;
-      if (assistantContent) {
-        setMessages((current) => [
-          ...current,
-          { role: "assistant", content: assistantContent },
-        ]);
-      }
-      setSession((current) => ({
-        ...(current as SessionPayload),
-        current_stage: payload.current_stage ?? current?.current_stage ?? "template",
-        status: payload.session_status ?? current?.status ?? "draft",
-        queuePosition: payload.queue_position ?? current?.queuePosition,
-      }));
-      setErrorMessage("");
-    } catch (_error) {
-      setErrorMessage("暂时无法继续整理需求，请稍后重试。");
-    } finally {
-      setIsSending(false);
-    }
-  }
-
-  async function handleUpload(file: File) {
-    try {
-      const payload: AttachmentPayload = await uploadAttachment(token, file, "参考图片");
-      setAttachments((current) => [
-        ...current,
-        { fileName: payload.file_name, caption: payload.caption },
-      ]);
-      setErrorMessage("");
-    } catch (_error) {
-      setErrorMessage("图片上传失败，请换一张图片后重试。");
-    }
-  }
+  const helperText =
+    sessionStatus === "generating_document"
+      ? "系统正在整理最终需求文档，暂时不能继续输入。"
+      : sessionStatus === "completed"
+        ? "本轮整理已经完成，可以使用后续修订 token 继续修改。"
+        : sessionStatus === "expired"
+          ? "这个整理链接已经失效，请联系管理员获取新的入口。"
+          : sessionStatus === "failed"
+            ? session.last_error ?? "本轮整理失败，请联系管理员重新签发 token。"
+            : undefined;
 
   return (
     <main className="min-h-screen bg-[var(--color-bg)] text-white">
-      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
-        <StepHeader currentStage={session.current_stage} />
-        {errorMessage ? (
-          <div className="mt-4 rounded-[20px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-3 text-sm text-white/86">
-            {errorMessage}
+      <div className="mx-auto max-w-[980px] px-4 py-4 sm:px-6">
+        <div className="mb-4 rounded-[24px] border border-white/10 bg-black/45 px-5 py-4 backdrop-blur-xl sm:px-6">
+          <p className="text-[12px] uppercase tracking-[0.22em] text-white/40">Chat-First Session</p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-[21px] font-semibold leading-[1.2] text-white">受控需求对话</h2>
+              <p className="mt-1 text-[14px] leading-[1.6] text-white/56">
+                当前状态：{session.status}
+              </p>
+            </div>
+            {session.successor_token ? (
+              <p className="text-[14px] leading-[1.6] text-white/68">
+                后续修订 Token：{session.successor_token}
+              </p>
+            ) : null}
           </div>
-        ) : null}
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4">
-            {session.current_stage === "template" && (
-              <TemplateSelector
-                onSelect={handleTemplateSelect}
-                onSkip={() => void handleTemplateSelect("跳过")}
-              />
-            )}
-            {session.current_stage !== "template" && (
-              <StyleSelector
-                onSelect={handleStyleSelect}
-                onSkip={() => void handleStyleSelect("跳过")}
-              />
-            )}
-            <ChatPanel
-              draft={draft}
-              isSending={isSending}
-              messages={messages}
-              onDraftChange={setDraft}
-              onSend={() => void handleSend()}
-            />
-            <AttachmentPanel
-              attachments={attachments}
-              onUpload={(file) => void handleUpload(file)}
-            />
-          </div>
-          <SummaryPanel
-            documentState={documentState}
-            session={session}
-            summaryPayload={session.summary?.payload}
-          />
+          {session.previous_summary ? (
+            <div className="mt-4 rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 text-[14px] leading-[1.7] text-white/74">
+              上一版摘要：{session.previous_summary}
+            </div>
+          ) : null}
+          {documentState?.summary_text ? (
+            <div className="mt-4 rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 text-[14px] leading-[1.7] text-white/74">
+              {documentState.summary_text}
+            </div>
+          ) : null}
+          {errorMessage ? (
+            <div className="mt-4 rounded-[20px] border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-3 text-sm text-white/86">
+              {errorMessage}
+            </div>
+          ) : null}
         </div>
+
+        <ChatPanel
+          attachments={attachments}
+          composerDisabled={Boolean(composerDisabled)}
+          conversationIntent={session.conversation_intent}
+          draft={draft}
+          hasMore={Boolean(session.has_more)}
+          helperText={helperText}
+          isLoadingMore={isLoadingMore}
+          isSending={isSending}
+          messages={messages}
+          onConfirmGenerate={() => void handleConfirmGenerate()}
+          onDraftChange={setDraft}
+          onLoadMore={() => void handleLoadMore()}
+          onSend={() => void handleSend()}
+          onUpload={(file) => void handleUpload(file)}
+        />
       </div>
     </main>
   );

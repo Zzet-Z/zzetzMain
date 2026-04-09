@@ -2,6 +2,7 @@ import type {
   AttachmentPayload,
   DocumentPayload,
   MessagePayload,
+  SessionMessage,
   SessionPayload,
 } from "./types";
 
@@ -17,19 +18,27 @@ async function parseJson<T>(response: Response, errorMessage: string): Promise<T
 
 export async function getSession(token: string): Promise<SessionPayload> {
   const response = await fetch(`${API_BASE}/sessions/${token}`);
-  return parseJson<SessionPayload>(response, "读取会话失败");
+  const payload = await parseJson<SessionPayload>(response, "读取会话失败");
+  return {
+    ...payload,
+    queuePosition: payload.queuePosition ?? payload.queue_position,
+  };
 }
 
-export async function updateSession(
+export async function getSessionMessages(
   token: string,
-  payload: Record<string, unknown>,
-): Promise<SessionPayload> {
-  const response = await fetch(`${API_BASE}/sessions/${token}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return parseJson<SessionPayload>(response, "更新会话失败");
+  beforeId: number,
+  limit = 50,
+): Promise<SessionMessage[]> {
+  const response = await fetch(
+    `${API_BASE}/sessions/${token}/messages?before_id=${beforeId}&limit=${limit}`,
+  );
+  const payload = await parseJson<{ messages?: SessionMessage[] } | SessionMessage[]>(
+    response,
+    "加载历史消息失败",
+  );
+
+  return Array.isArray(payload) ? payload : (payload.messages ?? []);
 }
 
 export async function sendMessage(
