@@ -176,6 +176,8 @@ systemctl enable --now "$SERVICE_NAME"
 nginx -t
 systemctl reload nginx
 
+APP_DIR="$APP_DIR" python3 -m app.db_migrations "$APP_DIR/backend/app.db"
+
 APP_DIR="$APP_DIR" python3 - <<'PY'
 import os
 import sqlite3
