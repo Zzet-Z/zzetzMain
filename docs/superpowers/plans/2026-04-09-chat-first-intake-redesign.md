@@ -103,6 +103,8 @@
 - [ ] **Step 1: 先写失败的模型与配置测试**
 
 ```python
+from pathlib import Path
+
 from app import create_app
 from app.db import SessionLocal
 from app.models import DocumentRecord, MessageRecord, SessionRecord
@@ -135,7 +137,7 @@ def test_session_record_uses_chat_first_fields(tmp_path):
         saved = db.get(SessionRecord, "invite-token")
 
     assert saved.status == "awaiting_user"
-    assert saved.current_stage is None
+    assert not hasattr(saved, "current_stage")
     assert saved.next_session_token is None
 ```
 
@@ -280,12 +282,32 @@ def test_generate_chat_reply_falls_back_when_llm_returns_plain_text():
     assert payload["conversation_intent"] == "continue"
 ```
 
+```python
+def test_generate_chat_reply_includes_previous_document_context():
+    captured = {}
+
+    class CapturingClient(FakeClient):
+        def generate(self, *, instructions: str, input_text: str, timeout: float):
+            captured["input_text"] = input_text
+            return super().generate(instructions=instructions, input_text=input_text, timeout=timeout)
+
+    client = CapturingClient('{"assistant_message":"继续聊","conversation_intent":"continue"}')
+
+    generate_chat_reply(
+        client,
+        session_context={"previous_document": "# 上一版需求文档"},
+        recent_messages=[{"role": "user", "content": "我想调整首页结构"}],
+    )
+
+    assert "上一版需求文档" in captured["input_text"]
+```
+
 - [ ] **Step 2: 运行测试，确认当前失败**
 
 Run:
 
 ```bash
-cd backend && pytest tests/test_llm_orchestrator.py::test_generate_chat_reply_parses_ready_to_generate_envelope tests/test_llm_orchestrator.py::test_generate_chat_reply_falls_back_when_llm_returns_plain_text -q
+cd backend && pytest tests/test_llm_orchestrator.py::test_generate_chat_reply_parses_ready_to_generate_envelope tests/test_llm_orchestrator.py::test_generate_chat_reply_falls_back_when_llm_returns_plain_text tests/test_llm_orchestrator.py::test_generate_chat_reply_includes_previous_document_context -q
 ```
 
 Expected:
@@ -296,6 +318,12 @@ Expected:
 
 ```python
 # backend/app/services/llm_orchestrator.py
+def build_chat_input(*, session_context: dict, recent_messages: list[dict]) -> str:
+    previous_document = session_context.get("previous_document") or "无"
+    history = "\n".join(f"{item['role']}: {item['content']}" for item in recent_messages)
+    return f"上一版最终文档：\n{previous_document}\n\n最近对话：\n{history}"
+
+
 def generate_chat_reply(client, *, session_context: dict, recent_messages: list[dict]) -> dict:
     response = client.generate(
         instructions=load_prompt("chat_system.md"),
@@ -327,6 +355,13 @@ def generate_chat_reply(client, *, session_context: dict, recent_messages: list[
   "assistant_message": "给用户看的自然语言回复",
   "conversation_intent": "continue 或 ready_to_generate"
 }
+```
+
+```md
+<!-- backend/app/prompts/welcome_initial.md -->
+你好！我是你的网站需求助手。
+接下来我会帮你梳理个人网站的目标、内容、风格和功能。
+你可以先告诉我：你想做一个什么样的网站？面向什么人？
 ```
 
 ```md
@@ -407,7 +442,12 @@ def test_document_generation_creates_successor_token(client, ready_to_generate_s
 
     assert response.status_code == 202
     assert payload["session_status"] == "generating_document"
-    assert payload["successor_token"] is not None
+
+    follow_up = client.get(f"/api/sessions/{ready_to_generate_session.token}")
+    follow_up_payload = follow_up.get_json()
+
+    assert follow_up_payload["status"] == "completed"
+    assert follow_up_payload["successor_token"] is not None
 ```
 
 - [ ] **Step 2: 运行测试，确认失败**
@@ -588,6 +628,8 @@ function handleEnter() {
 
 ```ts
 // frontend/src/lib/types.ts
+export type ConversationIntent = "continue" | "ready_to_generate";
+
 export type SessionStatus =
   | "queued"
   | "active"
@@ -596,6 +638,15 @@ export type SessionStatus =
   | "completed"
   | "failed"
   | "expired";
+
+export interface SessionPayload {
+  token: string;
+  status: SessionStatus;
+  conversation_intent?: ConversationIntent;
+  has_more?: boolean;
+  oldest_message_id?: number;
+  successor_token?: string | null;
+}
 ```
 
 - [ ] **Step 4: 运行前端入口测试**
@@ -623,6 +674,8 @@ git commit -m "feat: add token-gated homepage entry"
 - Modify: `frontend/src/routes/session-page.tsx`
 - Modify: `frontend/src/components/intake/chat-panel.tsx`
 - Modify: `frontend/src/components/intake/attachment-panel.tsx`
+- Modify: `frontend/src/lib/api.ts`
+- Modify: `frontend/src/lib/types.ts`
 - Test: `frontend/src/test/session-page.test.tsx`
 - Test: `frontend/src/test/session-flow.test.tsx`
 - Test: `frontend/src/test/mobile-states.test.tsx`
@@ -661,6 +714,39 @@ test("发送消息后先显示 typing，再显示 assistant 回复", async () =>
 });
 ```
 
+```tsx
+test("当会话进入 ready_to_generate 时展示确认按钮", async () => {
+  mockSessionFetch({
+    status: "awaiting_user",
+    conversation_intent: "ready_to_generate",
+    messages: [{ id: 1, role: "assistant", content: "我现在可以整理最终需求文档。", delivery_status: "final" }],
+  });
+
+  renderSessionPage();
+
+  expect(await screen.findByRole("button", { name: "开始生成最终需求文档" })).toBeInTheDocument();
+});
+```
+
+```tsx
+test("有更多历史消息时可以点击加载更多", async () => {
+  mockSessionFetch({
+    status: "awaiting_user",
+    has_more: true,
+    oldest_message_id: 101,
+    messages: [{ id: 102, role: "assistant", content: "最近一条消息", delivery_status: "final" }],
+  });
+  mockMessagesPageFetch([
+    { id: 100, role: "assistant", content: "更早的一条消息", delivery_status: "final" },
+  ]);
+
+  renderSessionPage();
+  await userEvent.click(await screen.findByRole("button", { name: "加载更多消息" }));
+
+  expect(await screen.findByText("更早的一条消息")).toBeInTheDocument();
+});
+```
+
 - [ ] **Step 2: 运行测试，确认失败**
 
 Run:
@@ -677,10 +763,27 @@ Expected:
 
 ```tsx
 // frontend/src/components/intake/chat-panel.tsx
-export function ChatPanel({ messages, draft, isSending, onDraftChange, onSend, attachments, onUpload }: Props) {
+export function ChatPanel({
+  messages,
+  draft,
+  isSending,
+  onDraftChange,
+  onSend,
+  onConfirmGenerate,
+  onLoadMore,
+  hasMore,
+  conversationIntent,
+  attachments,
+  onUpload,
+}: Props) {
   return (
     <section className="flex min-h-[calc(100vh-96px)] flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6">
+        {hasMore ? (
+          <button className="mx-auto block text-sm text-white/70" onClick={onLoadMore} type="button">
+            加载更多消息
+          </button>
+        ) : null}
         {messages.map((message) => (
           <div
             key={message.id}
@@ -689,6 +792,15 @@ export function ChatPanel({ messages, draft, isSending, onDraftChange, onSend, a
             <div className="rounded-[24px] bg-white/6 px-4 py-3 text-sm text-white">{message.content}</div>
           </div>
         ))}
+        {conversationIntent === "ready_to_generate" ? (
+          <button
+            className="mr-auto rounded-full bg-[var(--color-accent)] px-4 py-2 text-sm text-white"
+            onClick={onConfirmGenerate}
+            type="button"
+          >
+            开始生成最终需求文档
+          </button>
+        ) : null}
         {isSending ? <div className="mr-auto rounded-[24px] bg-white/6 px-4 py-3 text-sm text-white">...</div> : null}
       </div>
       <div className="sticky bottom-0 border-t border-white/10 bg-black/80 p-4 backdrop-blur">
@@ -703,8 +815,20 @@ export function ChatPanel({ messages, draft, isSending, onDraftChange, onSend, a
 
 ```tsx
 // frontend/src/routes/session-page.tsx
+async function handleConfirmGenerate() {
+  await sendMessage(token, { content: "请开始生成最终需求文档", confirm_generate: true });
+}
+
 if (session.status === "completed" || session.status === "expired" || session.status === "failed") {
   setComposerDisabled(true);
+}
+```
+
+```ts
+// frontend/src/lib/api.ts
+export async function getSessionMessages(token: string, beforeId: number, limit = 50): Promise<SessionMessage[]> {
+  const response = await fetch(`${API_BASE}/sessions/${token}/messages?before_id=${beforeId}&limit=${limit}`);
+  return parseJson<SessionMessage[]>(response, "加载历史消息失败");
 }
 ```
 
@@ -723,7 +847,7 @@ Expected:
 - [ ] **Step 5: 提交这一轮**
 
 ```bash
-git add frontend/src/routes/session-page.tsx frontend/src/components/intake/chat-panel.tsx frontend/src/components/intake/attachment-panel.tsx frontend/src/test/session-page.test.tsx frontend/src/test/session-flow.test.tsx frontend/src/test/mobile-states.test.tsx
+git add frontend/src/routes/session-page.tsx frontend/src/components/intake/chat-panel.tsx frontend/src/components/intake/attachment-panel.tsx frontend/src/lib/api.ts frontend/src/lib/types.ts frontend/src/test/session-page.test.tsx frontend/src/test/session-flow.test.tsx frontend/src/test/mobile-states.test.tsx
 git commit -m "feat: rebuild session page as single chat"
 ```
 
@@ -882,7 +1006,21 @@ Expected:
 
 - PASS
 
-- [ ] **Step 4: 使用真实浏览器做页面级验收**
+- [ ] **Step 4: 启动前后端本地服务**
+
+Run:
+
+```bash
+cd backend && python run.py
+cd frontend && npm run dev
+```
+
+Expected:
+
+- 后端监听 `http://127.0.0.1:5000`
+- 前端监听 `http://127.0.0.1:5173`
+
+- [ ] **Step 5: 使用真实浏览器做页面级验收**
 
 Use `agent-browser` skill and validate:
 
@@ -897,7 +1035,7 @@ Use `agent-browser` skill and validate:
 - `/admin` 可加载 token 列表、详情与 revoke 动作
 - 移动端视口下输入区固定底部、消息区滚动正常、没有横向溢出
 
-- [ ] **Step 5: 更新执行文档**
+- [ ] **Step 6: 更新执行文档**
 
 ```md
 ## [2026-04-09] Chat-first redesign
@@ -905,7 +1043,7 @@ Use `agent-browser` skill and validate:
 - 写入后端测试、前端测试、前端构建、真实浏览器验收结果
 ```
 
-- [ ] **Step 6: 提交最终验证与文档**
+- [ ] **Step 7: 提交最终验证与文档**
 
 ```bash
 git add DOCUMENTATION.md SESSION_CONTEXT.md
@@ -930,4 +1068,3 @@ git commit -m "docs: record chat-first redesign validation"
 - 后端会话状态统一为 `queued | active | awaiting_user | generating_document | completed | failed | expired`
 - JSON envelope 统一为 `assistant_message + conversation_intent`
 - admin 鉴权统一为 `Authorization: Bearer <admin_token>`
-

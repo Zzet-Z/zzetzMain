@@ -423,6 +423,7 @@ LLM 在整个会话中应遵循以下原则：
 输入：
 
 - 用户消息内容
+- 当用户确认进入最终文档生成时，显式传递 `confirm_generate=true`
 
 返回：
 
@@ -432,6 +433,8 @@ LLM 在整个会话中应遵循以下原则：
 - 若处于排队中，返回队列位置
 - 若模型输出 `ready_to_generate`，返回前端确认文档生成所需的标准状态字段
 - 若请求已触发最终文档生成，也应返回对应状态
+
+`successor_token` 不要求在这一步立即返回。它应在最终文档落盘成功后，通过后续 `GET /api/sessions/<token>` 的完成态响应返回。
 
 ### 11.4 `POST /api/sessions/<token>/attachments`
 
