@@ -42,6 +42,39 @@ def _previous_summary(db, session: SessionRecord) -> str | None:
     return previous_document.summary_text
 
 
+def _serialize_admin_token_detail(db, session: SessionRecord) -> dict[str, object]:
+    document = _document_for_session(db, session.token)
+    message_count = (
+        db.query(MessageRecord).filter(MessageRecord.session_token == session.token).count()
+    )
+    attachments = (
+        db.query(AttachmentRecord)
+        .filter(AttachmentRecord.session_token == session.token)
+        .order_by(AttachmentRecord.id.asc())
+        .all()
+    )
+    return {
+        "token": session.token,
+        "status": session.status,
+        "admin_note": session.admin_note,
+        "message_count": message_count,
+        "attachment_count": len(attachments),
+        "created_at": session.created_at,
+        "last_activity_at": session.last_activity_at,
+        "completed_at": session.completed_at,
+        "expires_at": session.expires_at,
+        "previous_summary": _previous_summary(db, session),
+        "previous_document_id": session.previous_document_id,
+        "origin_session_token": session.origin_session_token,
+        "next_session_token": session.next_session_token,
+        "successor_token": session.next_session_token,
+        "last_error": session.last_error,
+        "document": serialize_document(document),
+        "document_status": document.status if document else "pending",
+        "attachments": [serialize_attachment(item) for item in attachments],
+    }
+
+
 @admin_bp.post("/admin/tokens")
 def create_admin_token():
     auth_error = _authorize()
@@ -129,36 +162,7 @@ def get_admin_token_detail(token: str):
         return jsonify({"message": MISSING_SESSION_MESSAGE}), 404
 
     apply_session_lifecycle(session, now=utcnow())
-    document = _document_for_session(db, token)
-    message_count = (
-        db.query(MessageRecord).filter(MessageRecord.session_token == session.token).count()
-    )
-    attachments = (
-        db.query(AttachmentRecord)
-        .filter(AttachmentRecord.session_token == session.token)
-        .order_by(AttachmentRecord.id.asc())
-        .all()
-    )
-    payload = {
-        "token": session.token,
-        "status": session.status,
-        "admin_note": session.admin_note,
-        "message_count": message_count,
-        "attachment_count": len(attachments),
-        "created_at": session.created_at,
-        "last_activity_at": session.last_activity_at,
-        "completed_at": session.completed_at,
-        "expires_at": session.expires_at,
-        "previous_summary": _previous_summary(db, session),
-        "previous_document_id": session.previous_document_id,
-        "origin_session_token": session.origin_session_token,
-        "next_session_token": session.next_session_token,
-        "successor_token": session.next_session_token,
-        "last_error": session.last_error,
-        "document": serialize_document(document),
-        "document_status": document.status if document else "pending",
-        "attachments": [serialize_attachment(item) for item in attachments],
-    }
+    payload = _serialize_admin_token_detail(db, session)
     db.commit()
     return jsonify(payload)
 
@@ -178,5 +182,6 @@ def revoke_admin_token(token: str):
     session.expires_at = utcnow()
     session.queued_at = None
     session.active_started_at = None
+    payload = _serialize_admin_token_detail(db, session)
     db.commit()
-    return jsonify({"token": session.token, "status": session.status})
+    return jsonify(payload)

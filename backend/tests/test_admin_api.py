@@ -261,3 +261,24 @@ def test_admin_can_revoke_token(tmp_path):
             db.close()
 
     assert session.status == "expired"
+
+
+def test_admin_revoke_returns_full_detail_payload(tmp_path):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="invite-token")
+
+    response = client.post(
+        "/api/admin/tokens/invite-token/revoke",
+        headers={"Authorization": "Bearer admin-secret"},
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["token"] == "invite-token"
+    assert payload["status"] == "expired"
+    assert payload["admin_note"] == "李医生主页"
+    assert payload["document_status"] == "pending"
+    assert payload["message_count"] == 2
+    assert payload["attachment_count"] == 1
+    assert payload["expires_at"] is not None
