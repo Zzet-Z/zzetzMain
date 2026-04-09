@@ -18,10 +18,12 @@ function upsertListItem(items: AdminTokenListItem[], detail: AdminTokenDetail): 
     admin_note: detail.admin_note,
     message_count: detail.message_count,
     attachment_count: detail.attachment_count,
-    document_status: detail.document_status,
+    document_status: detail.document_status ?? detail.document?.status ?? null,
     last_activity_at: detail.last_activity_at,
+    previous_document_id: detail.previous_document_id,
     origin_session_token: detail.origin_session_token,
     next_session_token: detail.next_session_token,
+    successor_token: detail.successor_token,
   };
 
   const existingIndex = items.findIndex((item) => item.token === detail.token);
@@ -75,10 +77,11 @@ export function AdminPage() {
           ? { previous_document_id: Number(previousDocumentId.trim()) }
           : {}),
       });
+      const detailPayload = await getAdminTokenDetail(adminToken.trim(), payload.token);
 
-      setTokens((current) => upsertListItem(current, payload));
+      setTokens((current) => upsertListItem(current, detailPayload));
       setSelectedToken(payload.token);
-      setDetail(payload);
+      setDetail(detailPayload);
       setAdminNote("");
       setPreviousDocumentId("");
       setErrorMessage("");

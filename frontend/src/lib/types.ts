@@ -96,19 +96,36 @@ export interface AdminTokenListItem {
   last_activity_at?: string | null;
   origin_session_token?: string | null;
   next_session_token?: string | null;
+  previous_document_id?: number | null;
+  successor_token?: string | null;
 }
 
 export interface AdminTokenDetail extends AdminTokenListItem {
   created_at?: string | null;
   completed_at?: string | null;
   expires_at?: string | null;
-  previous_document_id?: number | null;
   summary_text?: string | null;
   prd_markdown?: string | null;
+  previous_summary?: string | null;
+  document?: DocumentPayload | null;
   last_error?: string | null;
 }
 
 export interface CreateAdminTokenPayload {
   admin_note?: string;
   previous_document_id?: number;
+}
+
+export interface AdminTokenListResponse {
+  items: AdminTokenListItem[];
+}
+
+export interface CreatedAdminTokenPayload {
+  token: string;
+  status: ChatSessionStatus;
+  admin_note?: string | null;
+  previous_document_id?: number | null;
+  origin_session_token?: string | null;
+  next_session_token?: string | null;
+  successor_token?: string | null;
 }

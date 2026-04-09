@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { App } from "../app";
-import type { AdminTokenDetail, AdminTokenListItem } from "../lib/types";
+import type { AdminTokenDetail, AdminTokenListItem, CreatedAdminTokenPayload } from "../lib/types";
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -35,7 +35,7 @@ beforeEach(() => {
     const url = String(input);
 
     if (url.endsWith("/api/admin/tokens") && (!init?.method || init.method === "GET")) {
-      return new Response(JSON.stringify(listItems), { status: 200 });
+      return new Response(JSON.stringify({ items: listItems }), { status: 200 });
     }
 
     if (url.endsWith("/api/admin/tokens") && init?.method === "POST") {
@@ -60,6 +60,8 @@ beforeEach(() => {
       detailByToken.set("fresh-token", {
         ...created,
         previous_document_id: body.previous_document_id ?? null,
+        previous_summary: "上一版摘要",
+        document: { status: "pending", summary_text: "", prd_markdown: "" },
         summary_text: null,
         prd_markdown: null,
         last_error: null,
@@ -68,7 +70,17 @@ beforeEach(() => {
         expires_at: null,
       });
 
-      return new Response(JSON.stringify(detailByToken.get("fresh-token")), { status: 201 });
+      const createdPayload: CreatedAdminTokenPayload = {
+        token: "fresh-token",
+        status: "awaiting_user",
+        admin_note: body.admin_note ?? null,
+        previous_document_id: body.previous_document_id ?? null,
+        origin_session_token: null,
+        next_session_token: null,
+        successor_token: null,
+      };
+
+      return new Response(JSON.stringify(createdPayload), { status: 201 });
     }
 
     const detailMatch = url.match(/\/api\/admin\/tokens\/([^/]+)$/);
@@ -197,6 +209,8 @@ test("管理员点击列表项后可以查看 token 详情", async () => {
     origin_session_token: null,
     next_session_token: "next-token",
     previous_document_id: 9,
+    previous_summary: "这是上一轮整理后的摘要。",
+    document: { status: "ready", summary_text: "这是上一轮整理后的摘要。", prd_markdown: "# 最终文档" },
     summary_text: "这是上一轮整理后的摘要。",
     prd_markdown: "# 最终文档",
     last_error: null,
@@ -242,6 +256,8 @@ test("管理员可以撤销 token", async () => {
     origin_session_token: null,
     next_session_token: null,
     previous_document_id: null,
+    previous_summary: null,
+    document: { status: "pending", summary_text: "", prd_markdown: "" },
     summary_text: null,
     prd_markdown: null,
     last_error: null,

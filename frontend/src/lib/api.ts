@@ -1,7 +1,9 @@
 import type {
+  AdminTokenListResponse,
   AdminTokenDetail,
   AdminTokenListItem,
   AttachmentPayload,
+  CreatedAdminTokenPayload,
   CreateAdminTokenPayload,
   DocumentPayload,
   MessagePayload,
@@ -87,19 +89,20 @@ export async function listAdminTokens(adminToken: string): Promise<AdminTokenLis
   const response = await fetch(`${API_BASE}/admin/tokens`, {
     headers: createAdminHeaders(adminToken),
   });
-  return parseJson<AdminTokenListItem[]>(response, "读取 token 列表失败");
+  const payload = await parseJson<AdminTokenListResponse>(response, "读取 token 列表失败");
+  return payload.items;
 }
 
 export async function createAdminToken(
   adminToken: string,
   payload: CreateAdminTokenPayload,
-): Promise<AdminTokenDetail> {
+): Promise<CreatedAdminTokenPayload> {
   const response = await fetch(`${API_BASE}/admin/tokens`, {
     method: "POST",
     headers: createAdminHeaders(adminToken, true),
     body: JSON.stringify(payload),
   });
-  return parseJson<AdminTokenDetail>(response, "签发 token 失败");
+  return parseJson<CreatedAdminTokenPayload>(response, "签发 token 失败");
 }
 
 export async function getAdminTokenDetail(
@@ -109,7 +112,13 @@ export async function getAdminTokenDetail(
   const response = await fetch(`${API_BASE}/admin/tokens/${token}`, {
     headers: createAdminHeaders(adminToken),
   });
-  return parseJson<AdminTokenDetail>(response, "读取 token 详情失败");
+  const payload = await parseJson<AdminTokenDetail>(response, "读取 token 详情失败");
+  return {
+    ...payload,
+    document_status: payload.document?.status ?? payload.document_status ?? null,
+    summary_text: payload.summary_text ?? payload.previous_summary ?? payload.document?.summary_text ?? null,
+    prd_markdown: payload.prd_markdown ?? payload.document?.prd_markdown ?? null,
+  };
 }
 
 export async function revokeAdminToken(
@@ -120,5 +129,11 @@ export async function revokeAdminToken(
     method: "POST",
     headers: createAdminHeaders(adminToken),
   });
-  return parseJson<AdminTokenDetail>(response, "撤销 token 失败");
+  const payload = await parseJson<AdminTokenDetail>(response, "撤销 token 失败");
+  return {
+    ...payload,
+    document_status: payload.document?.status ?? payload.document_status ?? null,
+    summary_text: payload.summary_text ?? payload.previous_summary ?? payload.document?.summary_text ?? null,
+    prd_markdown: payload.prd_markdown ?? payload.document?.prd_markdown ?? null,
+  };
 }
