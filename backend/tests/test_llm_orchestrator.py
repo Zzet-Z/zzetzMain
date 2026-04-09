@@ -3,12 +3,123 @@ import httpx
 from app.services.llm_client import LLMClient
 from app.services.llm_orchestrator import (
     build_chat_request,
+    build_chat_input,
     extract_summary_update,
+    generate_chat_reply,
     generate_stage_reply,
     load_prompt,
+    render_final_document_with_llm,
     render_prd_with_llm,
 )
 from app.services.summary_builder import merge_summary, should_refresh_summary
+
+
+def test_build_chat_input_includes_previous_document_and_history():
+    input_text = build_chat_input(
+        session_context={"previous_document": "# 上一版需求文档"},
+        recent_messages=[
+            {"role": "user", "content": "我想调整首页结构"},
+            {"role": "assistant", "content": "可以，我们先梳理页面目标。"},
+        ],
+    )
+
+    assert "上一版需求文档" in input_text
+    assert "user: 我想调整首页结构" in input_text
+    assert "assistant: 可以，我们先梳理页面目标。" in input_text
+
+
+def test_generate_chat_reply_parses_json_envelope():
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            assert "JSON" in instructions
+            assert "上一版最终文档" in input_text
+            return type(
+                "Response",
+                (),
+                {
+                    "text": '{"assistant_message":"信息已经足够，我可以整理最终需求文档。","conversation_intent":"ready_to_generate"}'
+                },
+            )()
+
+    payload = generate_chat_reply(
+        FakeClient(),
+        session_context={"previous_document": "# 上一版需求文档"},
+        recent_messages=[{"role": "user", "content": "我已经把需求都说完了"}],
+    )
+
+    assert payload["assistant_message"] == "信息已经足够，我可以整理最终需求文档。"
+    assert payload["conversation_intent"] == "ready_to_generate"
+
+
+def test_generate_chat_reply_falls_back_when_llm_returns_plain_text():
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            return type("Response", (), {"text": "我建议你先补充目标用户和转化动作。"})()
+
+    payload = generate_chat_reply(
+        FakeClient(),
+        session_context={"previous_document": None},
+        recent_messages=[{"role": "user", "content": "帮我看看"}],
+    )
+
+    assert payload["assistant_message"] == "我建议你先补充目标用户和转化动作。"
+    assert payload["conversation_intent"] == "continue"
+
+
+def test_generate_chat_reply_includes_previous_document_context():
+    captured = {}
+
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            captured["input_text"] = input_text
+            return type(
+                "Response",
+                (),
+                {"text": '{"assistant_message":"继续聊","conversation_intent":"continue"}'},
+            )()
+
+    generate_chat_reply(
+        FakeClient(),
+        session_context={"previous_document": "# 上一版需求文档"},
+        recent_messages=[{"role": "user", "content": "我想调整首页结构"}],
+    )
+
+    assert "上一版需求文档" in captured["input_text"]
+
+
+def test_render_final_document_with_llm_includes_previous_document_context():
+    captured = {}
+
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            captured["instructions"] = instructions
+            captured["input_text"] = input_text
+            assert timeout == 45.0
+            return type("Response", (), {"text": "# 项目目标\n\n做一个中文作品网站"})()
+
+    summary_text, prd_markdown = render_final_document_with_llm(
+        FakeClient(),
+        summary_payload={
+            "website_type": "个人作品页",
+            "visual_direction": "极简高级",
+        },
+        previous_document="# 上一版需求文档",
+        attachments=[{"file_name": "ref-1.png", "caption": "极简排版参考"}],
+    )
+
+    assert "上一版需求文档" in captured["input_text"]
+    assert "输出中文 PRD" in captured["instructions"]
+    assert "个人作品页" in summary_text
+    assert "极简高级" in summary_text
+    assert prd_markdown.startswith("# 项目目标")
+
+
+def test_welcome_initial_prompt_is_written_for_first_turn():
+    prompt = load_prompt("welcome_initial.md")
+
+    assert "网站需求助手" in prompt
+    assert "目标、内容、风格和功能" in prompt
+    assert "主要给谁看" in prompt
 
 
 def test_build_chat_request_uses_chinese_and_stage_prompt():
