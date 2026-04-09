@@ -4,6 +4,7 @@ from ..db import SessionLocal
 from ..models import AttachmentRecord, DocumentRecord, MessageRecord, SessionRecord
 from ..services.admin_auth import AdminAuthError, require_admin_token
 from ..services.session_lifecycle import (
+    INVALID_PREVIOUS_DOCUMENT_MESSAGE,
     MISSING_SESSION_MESSAGE,
     apply_session_lifecycle,
     create_token_session,
@@ -49,12 +50,17 @@ def create_admin_token():
 
     db = SessionLocal()
     payload = request.get_json(silent=True) or {}
-    session = create_token_session(
-        db,
-        admin_note=payload.get("admin_note"),
-        previous_document_id=payload.get("previous_document_id"),
-        now=utcnow(),
-    )
+    try:
+        session = create_token_session(
+            db,
+            admin_note=payload.get("admin_note"),
+            previous_document_id=payload.get("previous_document_id"),
+            now=utcnow(),
+        )
+    except ValueError as exc:
+        if str(exc) == INVALID_PREVIOUS_DOCUMENT_MESSAGE:
+            return jsonify({"message": INVALID_PREVIOUS_DOCUMENT_MESSAGE}), 400
+        raise
     db.commit()
     return (
         jsonify(
@@ -62,6 +68,9 @@ def create_admin_token():
                 "token": session.token,
                 "status": session.status,
                 "admin_note": session.admin_note,
+                "previous_document_id": session.previous_document_id,
+                "origin_session_token": session.origin_session_token,
+                "next_session_token": session.next_session_token,
                 "successor_token": None,
             }
         ),
@@ -98,6 +107,9 @@ def list_admin_tokens():
                 ),
                 "document_status": document.status if document else "pending",
                 "last_activity_at": session.last_activity_at,
+                "previous_document_id": session.previous_document_id,
+                "origin_session_token": session.origin_session_token,
+                "next_session_token": session.next_session_token,
                 "successor_token": session.next_session_token,
             }
         )
@@ -123,6 +135,9 @@ def get_admin_token_detail(token: str):
         "status": session.status,
         "admin_note": session.admin_note,
         "previous_summary": _previous_summary(db, session),
+        "previous_document_id": session.previous_document_id,
+        "origin_session_token": session.origin_session_token,
+        "next_session_token": session.next_session_token,
         "successor_token": session.next_session_token,
         "last_error": session.last_error,
         "document": serialize_document(document),
