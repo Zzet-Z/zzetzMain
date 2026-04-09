@@ -177,6 +177,31 @@ def test_get_session_messages_supports_before_id_pagination(tmp_path):
     assert payload["oldest_message_id"] == payload["messages"][0]["id"]
 
 
+def test_get_session_messages_rejects_invalid_pagination_values(tmp_path):
+    app = build_app(tmp_path, SESSION_MESSAGES_PAGE_SIZE=2)
+    client = app.test_client()
+    seed_session(
+        app,
+        token="invalid-pagination-token",
+        messages=[
+            {"role": "assistant", "content": "欢迎。", "delivery_status": "system"},
+            {"role": "user", "content": "第一条"},
+        ],
+    )
+
+    invalid_before_id = client.get(
+        "/api/sessions/invalid-pagination-token/messages?before_id=oops&limit=2"
+    )
+    invalid_limit = client.get(
+        "/api/sessions/invalid-pagination-token/messages?before_id=1&limit=0"
+    )
+
+    assert invalid_before_id.status_code == 400
+    assert invalid_before_id.get_json() == {"message": "分页参数不合法。"}
+    assert invalid_limit.status_code == 400
+    assert invalid_limit.get_json() == {"message": "分页参数不合法。"}
+
+
 def test_missing_session_returns_chinese_404_message(tmp_path):
     app = build_app(tmp_path)
     client = app.test_client()

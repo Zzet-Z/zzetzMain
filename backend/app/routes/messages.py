@@ -25,6 +25,7 @@ from ..services.session_lifecycle import (
 
 
 messages_bp = Blueprint("messages", __name__)
+PLACEHOLDER_SUMMARY_TEXT = "网站类型：未确定\n视觉方向：未确定"
 
 
 def _recent_messages(db, token: str, *, limit: int = 12) -> list[dict[str, str]]:
@@ -93,6 +94,17 @@ def _run_with_retries(fn):
     raise last_error or RuntimeError("暂时无法继续整理需求，请稍后重试。")
 
 
+def _fallback_summary_text(recent_messages: list[dict[str, str]]) -> str:
+    user_messages = [
+        item["content"].strip()
+        for item in recent_messages
+        if item["role"] == "user" and item["content"].strip()
+    ]
+    if not user_messages:
+        return PLACEHOLDER_SUMMARY_TEXT
+    return "本轮需求要点：" + "；".join(user_messages[-3:])
+
+
 @messages_bp.post("/sessions/<token>/messages")
 def create_message(token: str):
     db = SessionLocal()
@@ -112,7 +124,7 @@ def create_message(token: str):
     payload = request.get_json(silent=True) or {}
     content = (payload.get("content") or "").strip()
     confirm_generate = bool(payload.get("confirm_generate"))
-    if not content:
+    if not content and not confirm_generate:
         return jsonify({"message": "请输入你想补充的需求。"}), 400
 
     slot_status, queue_position = reserve_slot(
@@ -128,14 +140,18 @@ def create_message(token: str):
     now = utcnow()
     touch_session(session, now=now, user_message=True)
 
-    db.add(
-        MessageRecord(
-            session_token=token,
-            role="user",
-            content=content,
-            delivery_status="final",
+    if content:
+        db.add(
+            MessageRecord(
+                session_token=token,
+                role="user",
+                content=content,
+                delivery_status="final",
+            )
         )
-    )
+        db.flush()
+
+    recent_messages = _recent_messages(db, token)
 
     if confirm_generate:
         attachments = (
@@ -151,10 +167,11 @@ def create_message(token: str):
             db.flush()
 
         session.status = "generating_document"
+        summary_payload = _latest_summary_payload(db, token)
         try:
             summary_text, prd_markdown = _run_with_retries(
                 lambda: render_document_bundle(
-                    summary_payload=_latest_summary_payload(db, token),
+                    summary_payload=summary_payload,
                     attachments=[
                         {"file_name": item.file_name, "caption": item.caption}
                         for item in attachments
@@ -163,7 +180,7 @@ def create_message(token: str):
                         db,
                         session.previous_document_id,
                     ),
-                    recent_messages=_recent_messages(db, token),
+                    recent_messages=recent_messages,
                 )
             )
         except RuntimeError as exc:
@@ -173,6 +190,9 @@ def create_message(token: str):
             session.active_started_at = None
             db.commit()
             return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
+
+        if not summary_text.strip() or summary_text.strip() == PLACEHOLDER_SUMMARY_TEXT:
+            summary_text = _fallback_summary_text(recent_messages)
 
         document.status = "ready"
         document.summary_text = summary_text
@@ -211,7 +231,7 @@ def create_message(token: str):
                         session.previous_document_id,
                     )
                 },
-                recent_messages=_recent_messages(db, token),
+                recent_messages=recent_messages,
             )
         )
     except RuntimeError as exc:

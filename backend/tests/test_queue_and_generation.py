@@ -84,6 +84,38 @@ def test_message_route_returns_ready_to_generate_intent(tmp_path, monkeypatch):
     assert payload["poll_after_ms"] == 3000
 
 
+def test_message_route_includes_new_user_message_in_llm_context(tmp_path, monkeypatch):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="context-token")
+    captured = {}
+
+    def fake_generate_chat_reply(_client, *, session_context, recent_messages):
+        captured["recent_messages"] = recent_messages
+        return {
+            "assistant_message": "继续告诉我你的目标用户。",
+            "conversation_intent": "continue",
+        }
+
+    monkeypatch.setattr(
+        "app.routes.messages.generate_chat_reply",
+        fake_generate_chat_reply,
+        raising=False,
+    )
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: object())
+
+    response = client.post(
+        "/api/sessions/context-token/messages",
+        json={"content": "我想做一个摄影作品集网站"},
+    )
+
+    assert response.status_code == 201
+    assert captured["recent_messages"][-1] == {
+        "role": "user",
+        "content": "我想做一个摄影作品集网站",
+    }
+
+
 def test_document_generation_creates_successor_token(tmp_path, monkeypatch):
     app = build_app(tmp_path)
     client = app.test_client()
@@ -113,6 +145,49 @@ def test_document_generation_creates_successor_token(tmp_path, monkeypatch):
 
     document_response = client.get("/api/sessions/ready-token/document")
     assert document_response.get_json()["prd_markdown"] == "# 文档"
+
+
+def test_confirm_generate_allows_empty_content(tmp_path, monkeypatch):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="empty-confirm-token")
+
+    monkeypatch.setattr(
+        "app.routes.messages.render_document_bundle",
+        lambda **_: ("摘要", "# 文档"),
+    )
+
+    response = client.post(
+        "/api/sessions/empty-confirm-token/messages",
+        json={"confirm_generate": True},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json()["session_status"] == "generating_document"
+
+
+def test_confirm_generate_replaces_placeholder_summary_with_conversation_summary(tmp_path, monkeypatch):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="summary-token")
+
+    monkeypatch.setattr(
+        "app.routes.messages.render_document_bundle",
+        lambda **_: ("网站类型：未确定\n视觉方向：未确定", "# 文档"),
+    )
+
+    response = client.post(
+        "/api/sessions/summary-token/messages",
+        json={"content": "我想做一个极简的建筑事务所官网", "confirm_generate": True},
+    )
+
+    assert response.status_code == 202
+
+    document_response = client.get("/api/sessions/summary-token/document")
+    payload = document_response.get_json()
+
+    assert payload["summary_text"] != "网站类型：未确定\n视觉方向：未确定"
+    assert "建筑事务所官网" in payload["summary_text"]
 
 
 def test_sequential_messages_release_active_slots(tmp_path, monkeypatch):
@@ -257,3 +332,18 @@ def test_upload_route_rejects_completed_or_expired_token(tmp_path):
     assert completed_response.get_json() == {"message": "当前整理链接已结束，不能继续上传附件。"}
     assert expired_response.status_code == 410
     assert expired_response.get_json() == {"message": "这个整理链接已经失效，请联系管理员获取新的入口。"}
+
+
+def test_upload_route_returns_json_error_when_file_is_missing(tmp_path):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="missing-file-token")
+
+    response = client.post(
+        "/api/sessions/missing-file-token/attachments",
+        data={"caption": "没有文件"},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"message": "请上传图片文件。"}

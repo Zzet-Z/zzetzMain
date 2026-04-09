@@ -31,7 +31,9 @@ def create_attachment(token: str):
     if attachment_count >= current_app.config["MAX_UPLOAD_COUNT"]:
         return jsonify({"message": "当前会话最多上传 12 张图片"}), 400
 
-    file_storage = request.files["file"]
+    file_storage = request.files.get("file")
+    if file_storage is None:
+        return jsonify({"message": "请上传图片文件。"}), 400
     caption = request.form.get("caption", "")
 
     try:

@@ -80,6 +80,18 @@ def _message_window(db, token: str, *, limit: int, before_id: int | None = None)
     }
 
 
+def _parse_positive_int_arg(name: str, raw_value: str | None) -> int | None:
+    if raw_value is None:
+        return None
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        raise ValueError(name)
+    if value <= 0:
+        raise ValueError(name)
+    return value
+
+
 def load_session_for_frontend(db, token: str) -> tuple[SessionRecord | None, tuple[dict, int] | None]:
     session = db.get(SessionRecord, token)
     if session is None:
@@ -148,15 +160,16 @@ def get_session_messages(token: str):
         return jsonify(error[0]), error[1]
 
     try:
-        before_id = request.args.get("before_id", type=int)
-        limit = request.args.get(
-            "limit",
-            default=current_app.config["SESSION_MESSAGES_PAGE_SIZE"],
-            type=int,
+        before_id = _parse_positive_int_arg("before_id", request.args.get("before_id"))
+        raw_limit = request.args.get("limit")
+        limit = (
+            _parse_positive_int_arg("limit", raw_limit)
+            if raw_limit is not None
+            else current_app.config["SESSION_MESSAGES_PAGE_SIZE"]
         )
     except ValueError:
         return jsonify({"message": "分页参数不合法。"}), 400
 
-    limit = max(1, min(limit, current_app.config["SESSION_MESSAGES_PAGE_SIZE"]))
+    limit = min(limit, current_app.config["SESSION_MESSAGES_PAGE_SIZE"])
     payload = _message_window(db, session.token, limit=limit, before_id=before_id)
     return jsonify(payload)
