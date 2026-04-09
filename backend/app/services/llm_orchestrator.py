@@ -85,7 +85,7 @@ def _parse_chat_envelope(raw: str) -> dict | None:
         return None
 
     conversation_intent = payload.get("conversation_intent", "continue")
-    if conversation_intent not in {"continue", "ready_to_generate"}:
+    if conversation_intent not in {"continue", "ready_to_generate", "final_document"}:
         conversation_intent = "continue"
 
     return {
@@ -126,11 +126,19 @@ def extract_summary_update(client, *, current_stage: str, existing_summary: dict
         return existing_summary
 
 
-def render_prd_with_llm(client, *, summary_payload: dict, attachments: list[dict]) -> tuple[str, str]:
+def render_prd_with_llm(
+    client,
+    *,
+    summary_payload: dict,
+    attachments: list[dict],
+    recent_messages: list[dict] | None = None,
+    previous_document: str | None = None,
+) -> tuple[str, str]:
     return render_final_document_with_llm(
         client,
         summary_payload=summary_payload,
-        previous_document=None,
+        previous_document=previous_document,
+        recent_messages=recent_messages,
         attachments=attachments,
     )
 
@@ -140,6 +148,7 @@ def render_final_document_with_llm(
     *,
     summary_payload: dict,
     previous_document: str | None = None,
+    recent_messages: list[dict] | None = None,
     attachments: list[dict],
 ) -> tuple[str, str]:
     instructions = load_prompt("render_final_document.md")
@@ -147,10 +156,14 @@ def render_final_document_with_llm(
         f"- {item['file_name']}：{item.get('caption', '')}" for item in attachments
     )
     previous_document_text = previous_document.strip() if isinstance(previous_document, str) and previous_document.strip() else "无"
+    history = "\n".join(
+        f"{item['role']}: {item['content']}" for item in (recent_messages or [])
+    )
     response = client.generate(
         instructions=instructions,
         input_text=(
             f"结构化摘要：{json.dumps(summary_payload, ensure_ascii=False)}\n"
+            f"最近对话：\n{history or '无'}\n"
             f"上一版最终文档：\n{previous_document_text}\n"
             f"附件：\n{attachment_text or '无'}"
         ),

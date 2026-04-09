@@ -51,6 +51,27 @@ def test_generate_chat_reply_parses_json_envelope():
     assert payload["conversation_intent"] == "ready_to_generate"
 
 
+def test_generate_chat_reply_preserves_final_document_intent():
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            return type(
+                "Response",
+                (),
+                {
+                    "text": '{"assistant_message":"我可以开始整理最终文档。","conversation_intent":"final_document"}'
+                },
+            )()
+
+    payload = generate_chat_reply(
+        FakeClient(),
+        session_context={"previous_document": None},
+        recent_messages=[{"role": "user", "content": "可以开始出文档了"}],
+    )
+
+    assert payload["assistant_message"] == "我可以开始整理最终文档。"
+    assert payload["conversation_intent"] == "final_document"
+
+
 def test_generate_chat_reply_falls_back_when_llm_returns_plain_text():
     class FakeClient:
         def generate(self, *, instructions, input_text, timeout=30.0):
@@ -114,12 +135,39 @@ def test_render_final_document_with_llm_includes_previous_document_context():
     assert prd_markdown.startswith("# 项目目标")
 
 
+def test_render_final_document_with_llm_includes_recent_messages():
+    captured = {}
+
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            captured["input_text"] = input_text
+            return type("Response", (), {"text": "# 项目目标\n\n做一个中文作品网站"})()
+
+    render_final_document_with_llm(
+        FakeClient(),
+        summary_payload={"website_type": "个人作品页"},
+        previous_document=None,
+        recent_messages=[
+            {"role": "user", "content": "目标是展示插画作品"},
+            {"role": "assistant", "content": "明白，我们继续看风格。"},
+        ],
+        attachments=[],
+    )
+
+    assert "最近对话：" in captured["input_text"]
+    assert "user: 目标是展示插画作品" in captured["input_text"]
+    assert "assistant: 明白，我们继续看风格。" in captured["input_text"]
+
+
 def test_welcome_initial_prompt_is_written_for_first_turn():
     prompt = load_prompt("welcome_initial.md")
 
     assert "网站需求助手" in prompt
-    assert "目标、内容、风格和功能" in prompt
-    assert "主要给谁看" in prompt
+    assert "目标" in prompt
+    assert "目标用户" in prompt
+    assert "想展示的内容" in prompt
+    assert "喜欢什么风格" in prompt
+    assert "参考案例" in prompt
 
 
 def test_build_chat_request_uses_chinese_and_stage_prompt():
