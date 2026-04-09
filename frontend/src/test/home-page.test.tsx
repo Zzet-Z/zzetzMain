@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { App } from "../app";
@@ -10,8 +10,17 @@ beforeEach(() => {
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith("/sessions")) {
-        return new Response(JSON.stringify({ token: "demo-token" }), { status: 201 });
+      if (url.endsWith("/sessions/demo-token")) {
+        return new Response(
+          JSON.stringify({
+            token: "demo-token",
+            status: "active",
+            current_stage: "template",
+            selected_template: null,
+            selected_style: null,
+          }),
+          { status: 200 },
+        );
       }
       return new Response(JSON.stringify({}), { status: 200 });
     }),
@@ -24,9 +33,9 @@ afterEach(() => {
 
 test("首页展示五段式内容和主 CTA", () => {
   render(
-    <MemoryRouter initialEntries={["/"]}>
+    <BrowserRouter>
       <App />
-    </MemoryRouter>,
+    </BrowserRouter>,
   );
 
   expect(
@@ -42,14 +51,18 @@ test("首页展示五段式内容和主 CTA", () => {
   expect(screen.getByRole("heading", { level: 2, name: "准备开始你的首页梳理了吗？" })).toBeInTheDocument();
 });
 
-test("首页 CTA 点击后进入 loading 状态", async () => {
+test("输入 token 后可以跳转到聊天页", () => {
   render(
-    <MemoryRouter initialEntries={["/"]}>
+    <BrowserRouter>
       <App />
-    </MemoryRouter>,
+    </BrowserRouter>,
   );
 
   fireEvent.click(screen.getAllByRole("button", { name: "开始梳理我的网站" })[0]);
+  fireEvent.change(screen.getByLabelText("访问 Token"), { target: { value: "demo-token" } });
+  fireEvent.click(screen.getByRole("button", { name: "进入对话" }));
 
-  expect(await screen.findAllByRole("button", { name: "正在准备梳理页..." })).toHaveLength(2);
+  return waitFor(() => {
+    expect(window.location.pathname).toBe("/session/demo-token");
+  });
 });

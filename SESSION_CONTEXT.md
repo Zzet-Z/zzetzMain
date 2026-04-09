@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：Chat-first 重构的 spec / plan 已完成并通过审查，代码实现尚未开始；当前仓库代码仍保持旧的阶段式 intake MVP
-- 当前应执行任务：`docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md` 的 `Task 1`
-- 当前代码状态：后端和前端生产可用链路仍是模板/风格/阶段推进版 intake；`main` 分支新增了 chat-first 重构规格、实施计划和上下文文档，但尚未落任何功能代码
+- 当前状态：Task 4 已完成，首页入口已切换为 token-gated 流程
+- 当前应执行任务：`docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md` 的 `Task 5`
+- 当前代码状态：首页不再匿名创建 session，改为展示 token 输入并跳转到 `/session/:token`；session 页仍保持旧的阶段式 intake 形态，等待下一步收敛
 
 ## 已完成的关键文档
 - MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -79,8 +79,8 @@
 推荐顺序：
 1. 先按 `AGENTS.md` 阅读顺序恢复上下文
 2. 阅读 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`
-3. 先执行 `Task 1`
-4. 因为会涉及数据库模型、后端路由和前端主流程，优先评估是否按 `IMPLEMENT.md` 的 `Step 0.5` 使用独立 worktree
+3. 直接开始 `Task 5`
+4. 先把 session 页收敛为单聊天窗口，再接入确认生成与消息分页
 
 当前不建议跳过 `Task 1` 直接改前端页面，因为 chat-first 前端依赖新的 session / message / admin API 契约。
 
@@ -91,6 +91,7 @@
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- 本次 Task 4 待提交/已提交：`feat: add token-gated homepage entry`
 - `ec3a513` `docs: align chat-first spec and plan`
 - `8671dfd` `docs: add chat-first redesign plan`
 - `e7d7e6b` `docs: finalize chat-first redesign spec`
@@ -121,6 +122,8 @@
 - `SessionRecord.status` 现在新增了“处理中结束后的在途状态”语义：`active` 只表示占用并发槽位的处理中请求，完成后会落到 `in_progress`，失败时落到 `failed`
 - 远端宿主机存在代理环境变量；`LLMClient` 已通过 `trust_env=False` 显式忽略宿主机代理，后续不要回退这个行为
 - 已完成会话重新打开后，附件列表仍不会从后端回放到附件面板；持久化附件以文档 `参考附件` 段落为准
+- 首页 CTA 现在不会匿名创建 session；入口改成 token 输入后再跳转到 `/session/:token`
+- `src/test/session-flow.test.tsx` 还停留在旧的匿名创建 session 断言，下一轮 Task 5 需要一起迁移
 - 新会话不要直接开始改代码，先按 `AGENTS.md` 指定顺序读文档
 - 前端 UI 实现必须优先遵守 `apple/DESIGN.md`，不要临时发明另一套视觉语言
 - `backend/.env` 已从根目录 `.env.local` 迁入并由 `backend/app/config.py` 读取，后续不要把密钥写回仓库追踪文件

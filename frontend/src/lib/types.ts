@@ -1,3 +1,5 @@
+export type ConversationIntent = "continue" | "ready_to_generate";
+
 export type SessionStage =
   | "template"
   | "style"
@@ -35,6 +37,10 @@ export interface SessionPayload {
   document?: SessionDocument;
   queuePosition?: number;
   locale?: string;
+  conversation_intent?: ConversationIntent;
+  successor_token?: string | null;
+  has_more?: boolean;
+  oldest_message_id?: number;
 }
 
 export interface MessagePayload {
@@ -44,6 +50,7 @@ export interface MessagePayload {
   queue_position?: number;
   message?: string;
   poll_after_ms?: number;
+  conversation_intent?: ConversationIntent;
 }
 
 export interface AttachmentPayload {

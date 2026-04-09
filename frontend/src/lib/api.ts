@@ -15,11 +15,6 @@ async function parseJson<T>(response: Response, errorMessage: string): Promise<T
   return (await response.json()) as T;
 }
 
-export async function createSession(): Promise<SessionPayload> {
-  const response = await fetch(`${API_BASE}/sessions`, { method: "POST" });
-  return parseJson<SessionPayload>(response, "创建会话失败");
-}
-
 export async function getSession(token: string): Promise<SessionPayload> {
   const response = await fetch(`${API_BASE}/sessions/${token}`);
   return parseJson<SessionPayload>(response, "读取会话失败");

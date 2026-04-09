@@ -1,17 +1,17 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
 import { expect, test } from "vitest";
 import { App } from "../app";
 
-test("首页路由可以渲染", () => {
+test("首页 CTA 点击后会展开 token 输入区", () => {
   render(
-    <MemoryRouter initialEntries={["/"]}>
+    <BrowserRouter>
       <App />
-    </MemoryRouter>,
+    </BrowserRouter>,
   );
 
-  expect(
-    screen.getByRole("heading", { name: /把你想要的网站，说出来。/i }),
-  ).toBeInTheDocument();
+  fireEvent.click(screen.getAllByRole("button", { name: "开始梳理我的网站" })[0]);
+
+  expect(screen.getByLabelText("访问 Token")).toBeInTheDocument();
 });

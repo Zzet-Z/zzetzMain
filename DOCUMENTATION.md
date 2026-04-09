@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Chat-first redesign planning / implementation handoff
-- Current task: 将最新 chat-first spec / plan 拆解进待执行任务，并同步上下文文档
-- Status: Ready for implementation
+- Current milestone: Chat-first redesign implementation
+- Current task: Task 4 - 重构首页入口为 token-gated 流程
+- Status: Completed
 - Last updated: 2026-04-09
 
 ---
@@ -19,13 +19,12 @@
 - [x] 工程执行规则文件已建立 (AGENTS.md, PLANS.md, IMPLEMENT.md, DOCUMENTATION.md)
 
 ### In progress
-- [ ] Chat-first 重构的代码实现尚未开始；当前仓库代码仍是阶段式 intake MVP
+- [ ] Chat-first 重构继续推进中；Task 4 已完成，后续进入 session 页改造
 
 ### Not started
 - [ ] Task 1: 重构后端数据模型、配置和 `.env.example`
 - [ ] Task 2: 落地 chat-first prompt、JSON envelope 和修订轮上下文注入
 - [ ] Task 3: 重写 session / message / document / admin API 与生命周期
-- [ ] Task 4: 重构首页入口为 token-gated 流程
 - [ ] Task 5: 将 session 页收敛为单聊天窗口并接入确认生成与消息分页
 - [ ] Task 6: 实现后台管理页与前端 admin API
 - [ ] Task 7: 全量验证、浏览器验收、文档回写
@@ -54,8 +53,8 @@
    验证：`backend/tests/test_sessions_api.py`、`backend/tests/test_queue_and_generation.py`、`backend/tests/test_admin_api.py`。
 
 4. `Task 4`：改首页入口。
-   目标：首页保留五段式介绍，但不再匿名创建 session，改为 token 输入或受控访问入口。
-   验证：`frontend/src/test/app-shell.test.tsx`、`frontend/src/test/home-page.test.tsx`。
+  目标：首页保留五段式介绍，但不再匿名创建 session，改为 token 输入或受控访问入口。
+  验证：`frontend/src/test/app-shell.test.tsx`、`frontend/src/test/home-page.test.tsx`。
 
 5. `Task 5`：改聊天页。
    目标：去掉阶段条、模板卡、摘要面板，保留单窗口消息流、typing 态、附件入口、`ready_to_generate` 确认按钮和“加载更多消息”。
@@ -88,6 +87,43 @@
 - 更新 `SESSION_CONTEXT.md`，把当前仓库从“MVP 文档补齐阶段”切换为“chat-first 重构待实现阶段”
 - 更新 `AGENTS.md` 的参考规格、项目概览、前端验收口径和环境说明，使其与下一轮重构目标一致
 - 更新 `PLANS.md` 与 `IMPLEMENT.md`，让根级执行入口也明确指向 `2026-04-09` 的 chat-first spec / plan，而不是继续默认回退到 `2026-04-08` 的 MVP 文档
+
+### [2026-04-09] Task 4: 首页改为 token-gated 入口
+**Summary**
+- 首页 CTA 不再匿名创建 session，改为先展开受控 token 输入区，再由管理员签发的 token 进入 `/session/:token`
+- `frontend/src/lib/api.ts` 删除 `createSession()`，前端首页不再依赖匿名 session 创建接口
+- `frontend/src/lib/types.ts` 增加 chat-first 入口会用到的最小补充字段，同时保留现有 session 页仍在使用的类型，避免当前构建断裂
+- 新增 `frontend/src/components/home/token-entry.tsx`，把 token 输入与跳转封装成独立组件
+- 更新首页测试，覆盖 CTA 展开 token 输入区与 token 跳转路径
+
+**Files changed**
+- `frontend/src/lib/types.ts`
+- `frontend/src/lib/api.ts`
+- `frontend/src/routes/home-page.tsx`
+- `frontend/src/components/home/token-entry.tsx`
+- `frontend/src/test/app-shell.test.tsx`
+- `frontend/src/test/home-page.test.tsx`
+
+**Validation run**
+- 红灯确认：
+  - `cd frontend && npm test -- app-shell.test.tsx home-page.test.tsx`
+  - 初始失败分别来自缺少 token 输入区与首页仍未按 token-gated 流程工作
+- 绿灯验证：
+  - `cd frontend && npm test -- app-shell.test.tsx home-page.test.tsx`
+  - `cd frontend && npm run build`
+- 额外全量验证：
+  - `cd frontend && npm test`
+  - 失败在 `src/test/session-flow.test.tsx`，该测试仍断言首页点击开始后会直接进入旧的匿名 session 流程
+
+**Validation result**
+- 前端入口测试通过
+- 前端生产构建通过
+- 前端全量测试仍有 1 个旧断言失败，属于后续 Task 5 迁移范围
+
+**Known issues**
+- 当前 `SessionPage` 仍保留旧的阶段式 intake 形态，Task 5 会继续收敛
+- 首页与 session 页之间的类型契约仍有过渡期字段，后续 Task 5 / Task 6 会继续清理
+- `src/test/session-flow.test.tsx` 仍基于旧的匿名创建 session 入口，暂未纳入本 Task 的文件范围
 
 **Files changed**
 - `AGENTS.md`

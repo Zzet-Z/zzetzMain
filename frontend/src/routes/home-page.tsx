@@ -6,33 +6,40 @@ import { Hero } from "../components/home/hero";
 import { OutputPreview } from "../components/home/output-preview";
 import { Problem } from "../components/home/problem";
 import { Process } from "../components/home/process";
-import { createSession } from "../lib/api";
+import { TokenEntry } from "../components/home/token-entry";
 
 export function HomePage() {
   const navigate = useNavigate();
-  const [isCreating, setIsCreating] = useState(false);
+  const [isTokenEntryVisible, setIsTokenEntryVisible] = useState(false);
+  const [token, setToken] = useState("");
 
-  async function handleStart() {
-    if (isCreating) {
+  function handleStart() {
+    setIsTokenEntryVisible(true);
+  }
+
+  function handleSubmitToken() {
+    const normalizedToken = token.trim();
+    if (!normalizedToken) {
       return;
     }
 
-    setIsCreating(true);
-    try {
-      const payload = await createSession();
-      navigate(`/session/${payload.token}`);
-    } catch (_error) {
-      setIsCreating(false);
-    }
+    navigate(`/session/${normalizedToken}`);
   }
 
   return (
     <main className="min-h-screen bg-[var(--color-bg)] text-white">
-      <Hero loading={isCreating} onStart={() => void handleStart()} />
+      <Hero loading={false} onStart={handleStart} />
+      {isTokenEntryVisible ? (
+        <TokenEntry
+          value={token}
+          onChange={setToken}
+          onSubmit={handleSubmitToken}
+        />
+      ) : null}
       <Problem />
       <Process />
       <OutputPreview />
-      <FinalCta loading={isCreating} onStart={() => void handleStart()} />
+      <FinalCta loading={false} onStart={handleStart} />
     </main>
   );
 }
