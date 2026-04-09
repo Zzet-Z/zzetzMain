@@ -81,6 +81,7 @@ cd frontend && npm run build
 | `PLANS.md` | 里程碑计划与验收标准 |
 | `IMPLEMENT.md` | 执行规程（TDD 流程、worktree、反馈闭环） |
 | `DOCUMENTATION.md` | 执行日志、决策记录、当前状态 |
+| `OPERATIONS.md` | 生产部署、巡检、超时配置与故障排查 |
 | `apple/DESIGN.md` | 前端 UI 视觉风格指南 |
 | `docs/superpowers/specs/` | 产品规格说明书 |
 | `docs/superpowers/plans/` | 详细实施计划（Task 1–9） |

@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：`Milestone 9 / Task 9` 已完成，MVP 可运行、可验证、可回访
-- 当前应执行任务：`无强制后续 Task；如继续迭代，属于计划外增强`
-- 当前代码状态：后端已具备 SQLite 初始化、session API、真实 LLM client、状态机、消息路由、并发队列、文档生成、附件上传与文档读取接口；前端首页和需求梳理页都已接上线，完整真实浏览器验收链路已打通
+- 当前状态：MVP 已完成并上线，生产消息链路与部署脚本已固化，当前仓库处于交付文档补齐阶段
+- 当前应执行任务：`无强制后续 Task；如继续迭代，属于计划外增强或运维优化`
+- 当前代码状态：后端已具备 SQLite 初始化、session API、真实 LLM client、状态机、消息路由、并发队列、文档生成、附件上传与文档读取接口；前端首页和需求梳理页都已接上线，完整真实浏览器验收链路已打通；生产部署脚本 `scripts/deploy-zzetz-cn.sh` 已可重放
 
 ## 已完成的关键文档
 - 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -69,11 +69,11 @@ Milestone 1 到 9 已写完，主要覆盖：
 - Task 9：最终验证与文档
 
 ## 下一次会话最应该做什么
-当前最优先的是把这次生产部署修复提交并推送，然后在服务器上用 `scripts/deploy-zzetz-cn.sh` 重放一次部署，确认脚本本身可用。
+当前没有必须立即执行的计划内任务。
 
-如果下一次会话继续推进，优先顺序改为：
-1. 固化并复跑生产部署脚本
-2. 做 MVP 之后的体验增强
+如果下一次会话继续推进，优先顺序建议改为：
+1. 优化生产运维形态，例如切换到专用 deploy 用户、补回滚脚本或补监控
+2. 做 MVP 之后的体验增强，例如历史附件/消息回放、更细的错误提示
 3. 做新一轮产品能力规划
 
 无论做哪一种，仍先按 `AGENTS.md` 的阅读顺序恢复上下文，再决定是否需要新增计划。
@@ -85,7 +85,8 @@ Milestone 1 到 9 已写完，主要覆盖：
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
-- `TBD` 本轮尚未提交：生产消息链路修复、`trust_env=False`、部署脚本 `scripts/deploy-zzetz-cn.sh`
+- `2f6ac7f` `fix: harden production message pipeline`
+- `df52b38` `docs: add architecture guide and delegation rule`
 - `7f2e238` `feat: wire mobile-first intake flow`
 - `5ae8615` `feat: build mobile-first homepage`
 - `05f3376` `feat: add safe image uploads`

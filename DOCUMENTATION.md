@@ -5,8 +5,8 @@
 
 ## Current status
 - Current milestone: Post-MVP deployment / production hardening
-- Current task: 生产部署验证、消息链路修复、可重复部署脚本
-- Status: In progress
+- Current task: 运维 README、部署上下文整理与交付文档完善
+- Status: Documentation updated
 - Last updated: 2026-04-09
 
 ---
@@ -29,6 +29,30 @@
 ---
 
 ## Task log
+
+### [2026-04-09] Operations docs: 运维 README 与关键文档整理
+**Summary**
+- 新增 `OPERATIONS.md`，沉淀当前线上部署拓扑、关键目录、systemd/nginx 约定、环境变量、健康检查、常见故障与恢复流程
+- 在 `README.md` 的项目文档入口中加入运维文档，方便后续执行者快速找到生产信息
+- 更新 `DOCUMENTATION.md` 与 `SESSION_CONTEXT.md`，把生产消息链路修复、超时配置、状态语义与部署脚本入口固化为上下文
+
+**Files changed**
+- `OPERATIONS.md`
+- `README.md`
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- 文档补充任务，无新增代码执行面
+- 依赖上一轮已完成验证：
+  - `cd backend && pytest -q`
+  - `cd frontend && npm test`
+  - `cd frontend && npm run build`
+  - `bash scripts/deploy-zzetz-cn.sh`
+
+**Notes**
+- 运维文档避免记录密码、API key 等敏感信息
+- 文档中保留了当前生产形态需要的超时和状态语义，便于后续排障
 
 ### [2026-04-09] Production hotfix: 部署验证、消息链路修复与部署脚本
 **Summary**
