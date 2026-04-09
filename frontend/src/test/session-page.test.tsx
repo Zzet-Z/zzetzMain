@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -143,4 +143,57 @@ test("completed 会话会禁用输入区并展示 successor token", async () => 
     expect(composer).toBeDisabled();
   });
   expect(screen.getByText(/next-token/)).toBeInTheDocument();
+});
+
+test("completed 会话会弹出上线提示，确认后返回首页", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/sessions/demo-token")) {
+        return new Response(
+          JSON.stringify(
+            buildSessionResponse({
+              status: "completed",
+              successor_token: "next-token",
+              messages: [
+                {
+                  id: 1,
+                  role: "assistant",
+                  content: "最终需求文档已经整理完成。",
+                  delivery_status: "final",
+                },
+              ],
+            }),
+          ),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/sessions/demo-token/document")) {
+        return new Response(
+          JSON.stringify({
+            status: "ready",
+            summary_text: "网站类型：个人作品页",
+            prd_markdown: "# 网站需求 PRD",
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    }),
+  );
+
+  render(
+    <MemoryRouter initialEntries={["/session/demo-token"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("您的网站将于3-24小时内上线")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "确认" }));
+
+  await waitFor(() => {
+    expect(screen.getByRole("heading", { name: "把你想要的网站，说出来。" })).toBeInTheDocument();
+  });
 });

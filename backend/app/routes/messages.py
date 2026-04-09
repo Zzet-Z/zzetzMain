@@ -250,6 +250,43 @@ def create_message(token: str):
             delivery_status="final",
         )
     )
+
+    if envelope["conversation_intent"] == "final_document":
+        document = _latest_document(db, token)
+        if document is None:
+            document = DocumentRecord(session_token=token, revision_number=1)
+            db.add(document)
+            db.flush()
+
+        summary_text = _fallback_summary_text(recent_messages)
+        document.status = "ready"
+        document.summary_text = summary_text
+        document.prd_markdown = envelope["assistant_message"]
+        document.root_document_id = document.root_document_id or document.id
+        session.status = "completed"
+        session.completed_at = utcnow()
+        session.queued_at = None
+        session.active_started_at = None
+        create_successor_session(
+            db,
+            session=session,
+            document=document,
+            now=session.completed_at,
+        )
+        db.commit()
+        return (
+            jsonify(
+                {
+                    "assistant_reply": envelope["assistant_message"],
+                    "conversation_intent": envelope["conversation_intent"],
+                    "session_status": session.status,
+                    "successor_token": session.next_session_token,
+                    "poll_after_ms": 3000,
+                }
+            ),
+            201,
+        )
+
     session.status = "awaiting_user"
     session.queued_at = None
     session.active_started_at = None

@@ -84,6 +84,41 @@ def test_message_route_returns_ready_to_generate_intent(tmp_path, monkeypatch):
     assert payload["poll_after_ms"] == 3000
 
 
+def test_message_route_final_document_intent_completes_session(tmp_path, monkeypatch):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="final-doc-token")
+
+    monkeypatch.setattr(
+        "app.routes.messages.generate_chat_reply",
+        lambda *args, **kwargs: {
+            "assistant_message": "# 最终需求文档\n\n这是整理后的最终文档。",
+            "conversation_intent": "final_document",
+        },
+        raising=False,
+    )
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: object())
+
+    response = client.post(
+        "/api/sessions/final-doc-token/messages",
+        json={"content": "够了，直接帮我生成最终需求文档。"},
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 201
+    assert payload["session_status"] == "completed"
+    assert payload["successor_token"] is not None
+    assert payload["assistant_reply"].startswith("# 最终需求文档")
+
+    session_payload = client.get("/api/sessions/final-doc-token").get_json()
+    assert session_payload["status"] == "completed"
+    assert session_payload["successor_token"] is not None
+
+    document_payload = client.get("/api/sessions/final-doc-token/document").get_json()
+    assert document_payload["status"] == "ready"
+    assert document_payload["prd_markdown"].startswith("# 最终需求文档")
+
+
 def test_message_route_includes_new_user_message_in_llm_context(tmp_path, monkeypatch):
     app = build_app(tmp_path)
     client = app.test_client()

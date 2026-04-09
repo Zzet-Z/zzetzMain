@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { ChatPanel } from "../components/intake/chat-panel";
 import {
@@ -39,6 +39,7 @@ export function SessionPage({
 }: {
   initialState?: { status: SessionStatus | "awaiting_user" | "expired"; queuePosition?: number };
 }) {
+  const navigate = useNavigate();
   const { token = "" } = useParams();
   const [session, setSession] = useState<SessionPayload | null>(
     initialState
@@ -56,6 +57,7 @@ export function SessionPage({
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const sessionStatus = session?.status as string | undefined;
 
   const composerDisabled =
@@ -68,6 +70,12 @@ export function SessionPage({
     setMessages(session?.messages ?? []);
     setAttachments(session?.attachments ?? []);
   }, [session?.attachments, session?.messages]);
+
+  useEffect(() => {
+    if (session?.status === "completed") {
+      setShowCompletionModal(true);
+    }
+  }, [session?.status]);
 
   useEffect(() => {
     if (!token || initialState?.status === "queued") {
@@ -293,6 +301,32 @@ export function SessionPage({
 
   return (
     <main className="min-h-screen bg-[var(--color-bg)] text-white">
+      {showCompletionModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-4">
+          <div className="w-full max-w-[420px] rounded-[28px] border border-white/10 bg-[var(--color-surface-1)] px-6 py-6 shadow-[0_24px_80px_rgba(0,0,0,0.36)]">
+            <p className="text-[12px] uppercase tracking-[0.22em] text-white/40">需求已确认</p>
+            <h2 className="mt-3 text-[28px] font-semibold leading-[1.15] text-white">
+              您的网站将于3-24小时内上线
+            </h2>
+            <p className="mt-4 text-[15px] leading-[1.7] text-white/68">
+              当前需求文档已经确认完成。点击确认后将返回首页，后续如需继续调整，请使用后续修订 Token。
+            </p>
+            <div className="mt-6 flex justify-end">
+              <button
+                className="rounded-full bg-white px-5 py-2.5 text-sm text-black"
+                onClick={() => {
+                  setShowCompletionModal(false);
+                  navigate("/");
+                }}
+                type="button"
+              >
+                确认
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto max-w-[980px] px-4 py-4 sm:px-6">
         <div className="mb-4 rounded-[24px] border border-white/10 bg-black/45 px-5 py-4 backdrop-blur-xl sm:px-6">
           <p className="text-[12px] uppercase tracking-[0.22em] text-white/40">Chat-First Session</p>
