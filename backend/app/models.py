@@ -12,6 +12,9 @@ class SessionRecord(Base):
     token: Mapped[str] = mapped_column(String(64), primary_key=True)
     locale: Mapped[str] = mapped_column(String(16), default="zh-CN")
     status: Mapped[str] = mapped_column(String(32), default="awaiting_user")
+    current_stage: Mapped[str] = mapped_column(String(32), default="template")
+    selected_template: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    selected_style: Mapped[str | None] = mapped_column(String(64), nullable=True)
     admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin_session_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
     previous_document_id: Mapped[int | None] = mapped_column(
