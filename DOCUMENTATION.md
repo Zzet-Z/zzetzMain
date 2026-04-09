@@ -259,6 +259,27 @@
 - `agent-browser click` 对 React 按钮事件仍不稳定，在线上聊天页“发送”按钮和后台部分提交按钮上仍然会复现；因此线上消息发送与最终文档生成这一步是通过真实 API 补充验证的，而不是仅依赖按钮点击
 - 生产环境当前使用的是临时管理员 token `admin-secret`，后续应改成你自己的值
 
+### [2026-04-09] Follow-up: 正式化 SQLite 兼容迁移脚本
+**Summary**
+- 新增仓库内可重放的 SQLite 迁移入口 `backend/app/db_migrations.py`
+- 新增 `backend/tests/test_db_migrations.py`，覆盖“从旧版 schema 升级到 chat-first schema”与“重复执行幂等”两类场景
+- 将 `scripts/deploy-zzetz-cn.sh` 从临时内联 Python 迁移到调用正式的 `python3 -m app.db_migrations "$APP_DIR/backend/app.db"`
+- 这样后续再次部署 chat-first 版本时，不需要依赖手工敲临时 SQLite 修复脚本
+
+**Files changed**
+- `backend/app/db_migrations.py`
+- `backend/tests/test_db_migrations.py`
+- `scripts/deploy-zzetz-cn.sh`
+
+**Validation run**
+- `cd backend && pytest tests/test_db_migrations.py -q` -> `2 passed`
+- `cd backend && pytest -q` -> `60 passed`
+- `bash -n scripts/deploy-zzetz-cn.sh` -> 通过
+
+**Notes**
+- 这次新增的是“仓库内可重放入口”，并没有自动回滚已经在生产机上手工做过的那次表重建
+- 后续如果继续维护 SQLite 内测形态，优先走这个脚本，不再手工拼 SQL
+
 ### [2026-04-09] Planning handoff: chat-first redesign 文档收口与执行入口整理
 **Summary**
 - 先后完成并审查通过 chat-first 重构规格与实施计划：

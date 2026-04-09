@@ -22,7 +22,7 @@
 ## 当前阶段
 - 当前分支：`task/chat-first-redesign`
 - 当前状态：Chat-first 重构已完成本地验证并已部署到线上；线上健康检查通过，线上主链路可用
-- 当前应执行任务：无阻塞性实现任务；若继续推进，优先处理生产环境的临时管理员 token 和数据库迁移长期方案
+- 当前应执行任务：无阻塞性实现任务；若继续推进，优先处理生产环境的临时管理员 token 和体验类 follow-up
 - 当前代码状态：首页已切到 token-gated 入口，session 页已切到单聊天窗口，`/admin` 页面可管理 token；后端已切为 chat-first/token-gated 契约并上线到 `https://zzetz.cn`
 
 ## 已完成的关键文档
@@ -79,8 +79,7 @@
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
 2. 决定是否把 `task/chat-first-redesign` worktree 清理掉，因为变更已经合回 `main`
 3. 把生产环境中的临时 `ADMIN_TOKEN=admin-secret` 改成你自己的值
-4. 评估是否需要把当前 SQLite 兼容迁移整理成仓库内可重放的正式迁移脚本
-5. 如需继续做体验优化，优先排查 `agent-browser click` / React 按钮事件不稳定的问题，以及已完成会话附件列表不回放的问题
+4. 如需继续做体验优化，优先排查 `agent-browser click` / React 按钮事件不稳定的问题，以及已完成会话附件列表不回放的问题
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -89,6 +88,7 @@
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `602c6b8` `feat: add repeatable sqlite migration script`
 - `3d9623e` `docs: record chat-first implementation progress`
 - `5bd20b3` `fix: align admin frontend with api payloads`
 - `ae9c012` `feat: add admin token dashboard`
@@ -128,7 +128,7 @@
 - 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，生产环境也已拉取
 - 本地和线上的 `agent-browser` 对 React 按钮 click 事件仍存在不稳定性，尤其体现在聊天页“发送”按钮和后台部分提交按钮；页面结构和 API 主链路已验证通过，但纯按钮驱动 E2E 仍需后续工具/交互层排查
 - 生产环境当前临时使用 `ADMIN_TOKEN=admin-secret`，需要后续替换
-- 生产库为了兼容 chat-first 上线，已在服务器上做了最小 SQLite 表重建；后续应评估是否将其固化为仓库内可重放的迁移步骤
+- 仓库内已加入正式可重放的 SQLite 迁移脚本 `backend/app/db_migrations.py`，但生产机上已经做过一次手工表重建；后续若重建环境，应优先走脚本而不是重跑手工 SQL
 - 真实 LLM 主链路在百炼兼容层上依然偏慢；生产上一条消息可能包含“阶段回复 + 摘要提取”两次模型调用，因此部署时必须同步放宽 `gunicorn` 与 `nginx` 的超时窗口
 - `SessionRecord.status` 现在新增了“处理中结束后的在途状态”语义：`active` 只表示占用并发槽位的处理中请求，完成后会落到 `in_progress`，失败时落到 `failed`
 - 远端宿主机存在代理环境变量；`LLMClient` 已通过 `trust_env=False` 显式忽略宿主机代理，后续不要回退这个行为
