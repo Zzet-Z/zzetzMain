@@ -107,6 +107,21 @@ UPLOAD_FOLDER=uploads
 - 不要把密钥提交回仓库
 - 不要把本机 shell 代理环境当成服务依赖
 
+### 本地部署凭据
+
+如果需要从本机通过密码登录云机执行部署，可把本地 SSH 凭据放在仓库根目录 `.env`：
+
+```bash
+DEPLOY_HOST=129.204.9.74
+DEPLOY_USER=root
+DEPLOY_PASSWORD=...
+```
+
+规则：
+- 根目录 `.env` 只用于本机运维，不用于应用运行
+- 根目录 `.env` 已被 `.gitignore` 忽略，不要把这类密码写进仓库追踪文件
+- 服务器运行时仍只读取 `/opt/zzetzMain/backend/.env`
+
 ---
 
 ## 一键部署
