@@ -31,7 +31,7 @@
 ---
 
 ## Project overview
-面向简体中文非技术用户的个人网站需求梳理工具。首页建立产品认知，需求梳理页通过真实 LLM 引导用户输出中文摘要与 PRD。
+面向简体中文非技术用户的个人网站需求梳理工具。首页建立产品认知，访客通过管理员签发的 token 进入 chat-first 需求对话页，由真实 LLM 输出中文摘要与最终需求文档，并支持 successor token 修订链。
 
 ### Core constraints
 - MVP 只支持简体中文输入与输出
@@ -39,6 +39,8 @@
 - 轮询优先，不做 WebSocket
 - SQLite 作为内测数据库，数据访问层避免锁死在 SQLite 特性上
 - 同时最多 5 个活跃会话占用 LLM 处理资源
+- 用户不能匿名创建 session；会话 token 由管理员手动签发
+- 5 分钟无新交互只释放队列 / 并发资源，24 小时未完成才失效 token
 
 ---
 
@@ -64,23 +66,26 @@
 
 | 路径 | 说明 |
 |------|------|
-| `frontend/src/routes/` | 页面路由（首页、需求梳理页） |
+| `frontend/src/routes/` | 页面路由（首页、聊天页、后台管理页） |
 | `frontend/src/components/home/` | 首页五段式区块组件 |
-| `frontend/src/components/intake/` | 需求梳理页六组件 |
+| `frontend/src/components/intake/` | chat-first 聊天页组件 |
+| `frontend/src/components/admin/` | 后台 token 管理组件 |
 | `frontend/src/lib/` | API 客户端与类型定义 |
-| `backend/app/routes/` | API 路由（health、sessions、messages、uploads、documents） |
-| `backend/app/services/` | 业务逻辑（LLM、编排、队列、状态机、摘要、文档） |
-| `backend/app/prompts/` | 分阶段中文 prompt 文件 |
+| `backend/app/routes/` | API 路由（health、sessions、messages、uploads、documents、admin） |
+| `backend/app/services/` | 业务逻辑（LLM、编排、队列、会话生命周期、后台鉴权、文档） |
+| `backend/app/prompts/` | chat-first 中文 prompt、欢迎语与最终文档 prompt |
 | `docs/superpowers/specs/` | 产品规格说明书（**只读**） |
 | `docs/superpowers/plans/` | 实施计划（**只读**） |
 
 ---
 
 ## Reference documents
-- **产品规格**: `docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
-- **实施计划**: `docs/superpowers/plans/2026-04-08-personal-website-mvp.md`
+- **当前产品规格**: `docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md`
+- **当前实施计划**: `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`
+- **MVP 原始规格**: `docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
+- **MVP 原始计划**: `docs/superpowers/plans/2026-04-08-personal-website-mvp.md`
 
-Plan 中的 Task 1–9 是主要执行依据。每个 Task 包含明确的文件清单、代码示例、测试与提交点。
+当前执行默认以 `2026-04-09` 的 chat-first spec / plan 为准。`2026-04-08` 的文档保留为 MVP 历史基线与回溯参考。
 
 ---
 
@@ -119,8 +124,9 @@ apple/
 4. 如果页面行为与单元测试结果冲突，以真实浏览器中的行为为准继续排查
 
 ### 最低验收标准
-- 首页至少验证首屏加载、CTA 可点击、移动端布局不破坏
-- 需求梳理页至少验证模板选择、风格选择、消息发送、摘要更新、附件上传入口与阶段流转
+- 首页至少验证首屏加载、token 入口可用、移动端布局不破坏
+- 聊天页至少验证消息发送、左右消息布局、typing 态、附件上传入口、`ready_to_generate` 确认按钮、completed 后 successor token 展示
+- 后台页至少验证管理员 token 鉴权、token 列表、详情与 revoke
 - 只有单元测试通过但未做 `agent-browser` E2E 的前端任务，不算完成
 
 ---
@@ -140,6 +146,7 @@ cd backend && python run.py
 export OPENAI_API_KEY="your-key"
 export OPENAI_MODEL="qwen3.5-plus"
 export OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+export ADMIN_TOKEN="your-admin-token"
 ```
 
 ### Quality gates（机械化验证，不可跳过）

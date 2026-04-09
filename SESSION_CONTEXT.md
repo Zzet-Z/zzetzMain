@@ -17,17 +17,19 @@
 ---
 
 ## 项目一句话
-面向简体中文、非技术用户的个人网站需求梳理工具。首页建立产品认知，需求梳理页通过真实 LLM 引导用户输出中文摘要与 PRD。
+面向简体中文、非技术用户的个人网站需求梳理工具。首页建立产品认知，访客通过管理员签发的 token 进入 chat-first 需求对话页，由真实 LLM 输出中文摘要与最终需求文档，并通过 successor token 支持后续修订。
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：MVP 已完成并上线，生产消息链路与部署脚本已固化，当前仓库处于交付文档补齐阶段
-- 当前应执行任务：`无强制后续 Task；如继续迭代，属于计划外增强或运维优化`
-- 当前代码状态：后端已具备 SQLite 初始化、session API、真实 LLM client、状态机、消息路由、并发队列、文档生成、附件上传与文档读取接口；前端首页和需求梳理页都已接上线，完整真实浏览器验收链路已打通；生产部署脚本 `scripts/deploy-zzetz-cn.sh` 已可重放
+- 当前状态：Chat-first 重构的 spec / plan 已完成并通过审查，代码实现尚未开始；当前仓库代码仍保持旧的阶段式 intake MVP
+- 当前应执行任务：`docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md` 的 `Task 1`
+- 当前代码状态：后端和前端生产可用链路仍是模板/风格/阶段推进版 intake；`main` 分支新增了 chat-first 重构规格、实施计划和上下文文档，但尚未落任何功能代码
 
 ## 已完成的关键文档
-- 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
-- 实施计划：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md`
+- MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
+- MVP 实施计划：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md`
+- Chat-first 重构规格：`docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md`
+- Chat-first 重构实施计划：`docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`
 - 里程碑计划：`PLANS.md`
 - 执行规程：`IMPLEMENT.md`
 - 执行状态记录：`DOCUMENTATION.md`
@@ -48,35 +50,39 @@
 
 ## 计划里的关键技术决定
 - LLM：使用阿里云百炼 Qwen（`qwen3.5-plus`），兼容 OpenAI Responses API，通过 `httpx` 同步调用；base_url 为 `https://dashscope.aliyuncs.com/compatible-mode/v1`
-- 轮询：对话阶段 3 秒，文档生成阶段 5 秒
-- 会话：`session token` 标识，无登录
-- 阶段：`template -> style -> positioning -> content -> features -> generate`
-- 文档生成：摘要提取和 PRD 生成都走真实 LLM
-- 容错：`LLMClient.generate()` 在超时时会自动重试一次；阶段回复与摘要提取超时已按真实供应商耗时上调到 90 秒
+- 轮询：继续保留轮询，不做 WebSocket；对话消息和文档生成都由 chat-first 接口返回轮询信号
+- 会话：`token = 一次受控访问的一轮会话`，由管理员签发，不再允许匿名创建 session
+- 会话状态：`queued -> active -> awaiting_user -> generating_document -> completed / failed / expired`
+- 资源释放：5 分钟无新交互只释放队列/并发资源，不直接废 token；24 小时未完成则标记为 `expired`
+- 对话协议：LLM 使用 JSON envelope，至少返回 `assistant_message` 与 `conversation_intent`
+- 容错：若 envelope 解析失败，则回退为 `assistant_message=原文`、`conversation_intent=continue`；不计入三次失败重试
+- 生成确认：用户确认生成最终文档时，显式传 `confirm_generate=true`
+- 修订链：最终文档落盘成功后同步创建 successor token；修订轮会把上一版最终文档注入 LLM 上下文
+- 欢迎语：`welcome_initial.md` 与 `welcome_revision.md` 由后端固定返回，不走 LLM
+- 后台鉴权：环境变量 `ADMIN_TOKEN`，请求头使用 `Authorization: Bearer <admin_token>`
 - 前端：React + Tailwind CSS + Vite
 - 后端：Flask + SQLite
 
 ## 当前计划的实现范围
-Milestone 1 到 9 已写完，主要覆盖：
-- Task 1：前后端脚手架
-- Task 2：会话模型与 session API
-- Task 3：真实 LLM 客户端与 prompt 编排
-- Task 4：阶段状态机、对话引导、摘要提取
-- Task 5：并发队列、文档生成、轮询
-- Task 6：上传、安全约束、错误处理
-- Task 7：首页五段式移动端优先 UI
-- Task 8：需求梳理页六组件与前后端接线
-- Task 9：最终验证与文档
+当前活跃计划是 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`，主要覆盖：
+- Task 1：重构后端数据模型、配置和 `.env.example`
+- Task 2：落地 chat-first prompt、JSON envelope 和修订轮上下文注入
+- Task 3：重写 session / message / document / admin API 与生命周期
+- Task 4：改首页入口为 token-gated 流程
+- Task 5：将 session 页收敛为单聊天窗口，并接入确认生成与消息分页
+- Task 6：实现后台管理页与前端 admin API
+- Task 7：全量验证、真实浏览器验收与文档回写
 
 ## 下一次会话最应该做什么
-当前没有必须立即执行的计划内任务。
+下一次会话应直接进入 chat-first 重构实现，不再停留在文档讨论阶段。
 
-如果下一次会话继续推进，优先顺序建议改为：
-1. 优化生产运维形态，例如切换到专用 deploy 用户、补回滚脚本或补监控
-2. 做 MVP 之后的体验增强，例如历史附件/消息回放、更细的错误提示
-3. 做新一轮产品能力规划
+推荐顺序：
+1. 先按 `AGENTS.md` 阅读顺序恢复上下文
+2. 阅读 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`
+3. 先执行 `Task 1`
+4. 因为会涉及数据库模型、后端路由和前端主流程，优先评估是否按 `IMPLEMENT.md` 的 `Step 0.5` 使用独立 worktree
 
-无论做哪一种，仍先按 `AGENTS.md` 的阅读顺序恢复上下文，再决定是否需要新增计划。
+当前不建议跳过 `Task 1` 直接改前端页面，因为 chat-first 前端依赖新的 session / message / admin API 契约。
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -85,6 +91,11 @@ Milestone 1 到 9 已写完，主要覆盖：
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `ec3a513` `docs: align chat-first spec and plan`
+- `8671dfd` `docs: add chat-first redesign plan`
+- `e7d7e6b` `docs: finalize chat-first redesign spec`
+- `6852601` `docs: refine chat-first redesign spec`
+- `2720879` `docs: add chat-first intake redesign spec`
 - `2f6ac7f` `fix: harden production message pipeline`
 - `df52b38` `docs: add architecture guide and delegation rule`
 - `7f2e238` `feat: wire mobile-first intake flow`
@@ -103,6 +114,9 @@ Milestone 1 到 9 已写完，主要覆盖：
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
+- 当前 `main` 分支上的代码与最新 chat-first spec / plan 有意存在差异：文档已切到目标态，但功能代码仍是旧的阶段式 intake。下一轮实现前不要把“文档已完成”误判成“功能已落地”
+- 新一轮实现会同时改数据库模型、核心 API、首页入口、聊天主页面和后台页，属于高风险改动；建议默认考虑 worktree
+- `PLANS.md` 仍是 MVP 初始里程碑记录；实际执行时应以 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md` 为当前主计划
 - 真实 LLM 主链路在百炼兼容层上依然偏慢；生产上一条消息可能包含“阶段回复 + 摘要提取”两次模型调用，因此部署时必须同步放宽 `gunicorn` 与 `nginx` 的超时窗口
 - `SessionRecord.status` 现在新增了“处理中结束后的在途状态”语义：`active` 只表示占用并发槽位的处理中请求，完成后会落到 `in_progress`，失败时落到 `failed`
 - 远端宿主机存在代理环境变量；`LLMClient` 已通过 `trust_env=False` 显式忽略宿主机代理，后续不要回退这个行为

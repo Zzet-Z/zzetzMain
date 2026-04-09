@@ -4,31 +4,103 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Post-MVP deployment / production hardening
-- Current task: 运维 README、部署上下文整理与交付文档完善
-- Status: Documentation updated
+- Current milestone: Chat-first redesign planning / implementation handoff
+- Current task: 将最新 chat-first spec / plan 拆解进待执行任务，并同步上下文文档
+- Status: Ready for implementation
 - Last updated: 2026-04-09
 
 ---
 
 ## Project snapshot
 ### Completed
-- [x] 产品规格文档已完成 (`docs/superpowers/specs/`)
-- [x] 实施计划已完成 (`docs/superpowers/plans/`)
+- [x] MVP 原始产品规格与实施计划已完成 (`docs/superpowers/specs/2026-04-08-*.md`, `docs/superpowers/plans/2026-04-08-*.md`)
+- [x] Chat-first 重构规格已完成 (`docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md`)
+- [x] Chat-first 重构实施计划已完成 (`docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`)
 - [x] 工程执行规则文件已建立 (AGENTS.md, PLANS.md, IMPLEMENT.md, DOCUMENTATION.md)
 
 ### In progress
-- （无）
+- [ ] Chat-first 重构的代码实现尚未开始；当前仓库代码仍是阶段式 intake MVP
 
 ### Not started
-- （无）
+- [ ] Task 1: 重构后端数据模型、配置和 `.env.example`
+- [ ] Task 2: 落地 chat-first prompt、JSON envelope 和修订轮上下文注入
+- [ ] Task 3: 重写 session / message / document / admin API 与生命周期
+- [ ] Task 4: 重构首页入口为 token-gated 流程
+- [ ] Task 5: 将 session 页收敛为单聊天窗口并接入确认生成与消息分页
+- [ ] Task 6: 实现后台管理页与前端 admin API
+- [ ] Task 7: 全量验证、浏览器验收、文档回写
 
 ### Blocked
 - （无）
 
 ---
 
+## Pending execution tasks
+
+当前批准进入实现的是 `docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md` 与 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`。
+
+建议执行顺序如下：
+
+1. `Task 1`：先改后端模型与配置。
+   目标：去掉旧阶段字段，加入 chat-first 状态、修订链字段、`ADMIN_TOKEN` 和分页配置。
+   验证：`backend/tests/test_sessions_api.py` 中的模型与配置红绿灯测试。
+
+2. `Task 2`：再改 prompt 与 orchestrator。
+   目标：引入 `chat_system.md`、`welcome_initial.md`、`welcome_revision.md`、`render_final_document.md`，并完成 JSON envelope 解析、非 JSON fallback、上一版文档上下文注入。
+   验证：`backend/tests/test_llm_orchestrator.py`，特别是 envelope fallback 测试。
+
+3. `Task 3`：重写后端 API。
+   目标：完成 token 生命周期、`confirm_generate`、successor token、admin token 管理、revoke、消息分页和会话失效逻辑。
+   验证：`backend/tests/test_sessions_api.py`、`backend/tests/test_queue_and_generation.py`、`backend/tests/test_admin_api.py`。
+
+4. `Task 4`：改首页入口。
+   目标：首页保留五段式介绍，但不再匿名创建 session，改为 token 输入或受控访问入口。
+   验证：`frontend/src/test/app-shell.test.tsx`、`frontend/src/test/home-page.test.tsx`。
+
+5. `Task 5`：改聊天页。
+   目标：去掉阶段条、模板卡、摘要面板，保留单窗口消息流、typing 态、附件入口、`ready_to_generate` 确认按钮和“加载更多消息”。
+   验证：`frontend/src/test/session-page.test.tsx`、`frontend/src/test/session-flow.test.tsx`、`frontend/src/test/mobile-states.test.tsx`。
+
+6. `Task 6`：补后台管理页。
+   目标：完成 `/admin` 入口、管理员 token 输入、签发 token、token 列表、详情和 revoke。
+   验证：`frontend/src/test/admin-page.test.tsx`。
+
+7. `Task 7`：统一验收。
+   目标：跑后端全量测试、前端全量测试、前端构建，并使用 `agent-browser` 完成首页 / 聊天页 / 后台页真实浏览器验收。
+   验证：`cd backend && pytest -q`、`cd frontend && npm test`、`cd frontend && npm run build`、真实浏览器链路。
+
+### Execution notes
+
+- 当前 `main` 分支上的代码仍然是阶段式 intake MVP；spec / plan 描述的是下一轮目标态，不是现状回放。
+- 下一轮长 coding 任务开始前，应优先按 `IMPLEMENT.md` 的 `Step 0.5` 评估是否使用独立 worktree。由于本轮会同时改数据库模型、路由层和前端主流程，默认建议使用 worktree。
+- 计划中的代码示例已经过多轮审查，但仍应按 TDD 实际跑红灯和绿灯，不要把 plan 当作“已验证实现”。
+
+---
+
 ## Task log
+
+### [2026-04-09] Planning handoff: chat-first redesign 文档收口与执行入口整理
+**Summary**
+- 先后完成并审查通过 chat-first 重构规格与实施计划：
+  - `docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md`
+  - `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`
+- 将最新 spec / plan 拆解为待执行任务，写入 `DOCUMENTATION.md` 的 `Not started` 与 `Pending execution tasks`
+- 更新 `SESSION_CONTEXT.md`，把当前仓库从“MVP 文档补齐阶段”切换为“chat-first 重构待实现阶段”
+- 更新 `AGENTS.md` 的参考规格、项目概览、前端验收口径和环境说明，使其与下一轮重构目标一致
+
+**Files changed**
+- `AGENTS.md`
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- 文档整理任务，无新增代码执行面
+- 文档自检：
+  - `git diff --check`
+
+**Notes**
+- 当前仓库代码尚未实现 chat-first 设计；只是文档和执行入口已经切到下一轮目标态
+- 下一轮实现必须以 `docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md` 和 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md` 为准，不要回退到旧的阶段式 intake 任务定义
 
 ### [2026-04-09] Operations docs: 运维 README 与关键文档整理
 **Summary**
