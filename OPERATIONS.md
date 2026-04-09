@@ -188,6 +188,82 @@ systemctl daemon-reload
 
 ---
 
+## 公网 E2E 浏览器规程
+
+生产环境做 `agent-browser` 页面级验收时，当前项目有一个必须遵守的操作约定：
+
+- `agent-browser snapshot -i` 会列出视口外的交互元素
+- 但 `agent-browser click @ref` 对视口外元素不会稳定自动滚动
+- 这类情况下命令可能返回 `Done`，但页面实际上没有收到任何 `pointer` / `mouse` / `click` 事件
+
+### 结论
+
+**在当前仓库的公网 E2E 中，凡是按钮可能不在首屏内时，必须先滚动到按钮进入当前视口，再执行点击。**
+
+### 标准步骤
+
+1. 打开页面并等待稳定：
+
+```bash
+agent-browser open https://zzetz.cn/...
+agent-browser wait --load networkidle
+agent-browser snapshot -i
+```
+
+2. 如果目标按钮不在首屏，先滚动，再重新抓取快照：
+
+```bash
+agent-browser scroll down 300
+agent-browser snapshot -i
+```
+
+3. 确认按钮已进入当前视口后，再点击：
+
+```bash
+agent-browser click @eN
+```
+
+4. 点击后不要只看命令退出状态，要继续验证页面状态是否真的变化：
+
+```bash
+agent-browser snapshot -i
+```
+
+或配合真实 API / DevTools Network 复核是否真的发出了请求。
+
+### 当前项目里必须先滚动再点的高风险位置
+
+- 聊天页底部 `发送` 按钮
+- 聊天页 `ready_to_generate` 后的“开始生成最终需求文档”按钮（当消息较多时）
+- 后台页详情区的 `撤销 Token` 按钮（当列表较长、详情区域被压到下方时）
+
+### 一般可直接点击的低风险位置
+
+- 首页首屏 Hero 的“开始梳理我的网站”
+- 首页 token 输入区的“进入对话”
+- 后台首屏的“进入后台”（在默认桌面视口下通常位于首屏内）
+
+### 诊断信号
+
+如果出现以下现象，优先怀疑“按钮仍在视口外”而不是业务代码异常：
+
+- `agent-browser click` 返回 `Done`
+- 但页面没有进入 loading / typing / modal / route change
+- DevTools 里没有对应的点击后网络请求
+- 目标按钮文本、输入框内容、disabled 状态都没有变化
+
+### 备用策略
+
+如果必须继续验证真实链路，而 `agent-browser` 点击仍不稳定：
+
+- 先滚动，再点击
+- 若仍失败，用 DevTools 点击做对照，确认是否是浏览器工具问题
+- 对消息发送、文档生成这类链路，可用真实 API 触发，再回到页面验证渲染结果
+
+这个约定目前是**工具侧限制**，不是前端业务逻辑本身的已确认缺陷。
+
+---
+
 ## 常见故障与处理
 
 ### 1. `/api/sessions/:token/messages` 返回 500

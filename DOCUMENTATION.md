@@ -85,6 +85,39 @@
 
 ## Task log
 
+### [2026-04-10] Follow-up: 固化公网 E2E 的先滚动后点击规程
+**Summary**
+- 针对“`agent-browser click` 在聊天页和后台页偶发不生效”的问题做了根因复盘，并把结论固化为仓库规程
+- 已确认这不是后端慢、React `onClick` 丢失或轮询覆盖导致的假象，而是 `agent-browser` 对**视口外元素**不会稳定自动滚动：
+  - `snapshot -i` 能列出视口外按钮
+  - `click @ref` 可能返回 `Done`
+  - 但页面实际上没有收到任何原生 `pointerdown/mousedown/click` 事件，也不会发起网络请求
+- 对照验证结果：
+  - 首页 Hero CTA 位于首屏内时，`agent-browser click` 可稳定触发完整事件链
+  - 聊天页底部“发送”按钮位于视口外时，`agent-browser click` 返回成功但零事件、零请求
+  - 先执行滚动，再点击同一按钮后，事件链、typing 态和 `POST /messages` 会立即恢复正常
+- 已把公网 E2E 规程写入 `OPERATIONS.md`，明确“先滚动到按钮进入视口，再重新 snapshot 后点击”是当前项目的标准操作
+
+**Files changed**
+- `OPERATIONS.md`
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- 真实浏览器对照验证：
+  - `agent-browser click` 点击首页首屏 CTA，可稳定触发事件
+  - 在聊天页中，视口外“发送”按钮点击失败；滚动进入视口后点击成功
+- 轻量校验：
+  - `git diff --check`
+
+**Validation result**
+- 已确认根因属于浏览器自动化工具与视口可见性不一致，而非业务主链路代码错误
+- 仓库内已经有可复用的公网 E2E 操作规程，后续验收应按该规程执行
+
+**Notes**
+- 这次工作没有修改业务代码，只新增运维/验收规程和状态记录
+- 公网 E2E 仍应优先使用真实浏览器；当工具点击受限时，可用真实 API 触发主链路，再回到页面复核渲染结果
+
 ### [2026-04-09] Task F1-F6 recovery sync: 代码已修，文档补归档
 **Summary**
 - 重新核对当前 `main` 工作区和最近提交后，确认 F1-F6 并非“待实现”，而是已经落在代码中：
