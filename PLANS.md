@@ -9,6 +9,25 @@
 
 在不破坏现有稳定能力的前提下，按 Plan 文档中的 Task 1–9 逐步推进，并通过分阶段验证保证质量。
 
+## Current execution note
+
+上面的 `Project objective` 和 Milestone 1–9 描述的是已经完成的 MVP 基线。
+
+当前进入实现阶段的活跃工作，不再是继续执行 Task 1–9，而是：
+
+- 产品规格：`docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md`
+- 实施计划：`docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`
+
+下一轮实现默认应以 `2026-04-09` 的 chat-first spec / plan 为准，重点包括：
+
+- 后端 chat-first 会话模型、JSON envelope、修订链和 admin token 管理
+- 首页 token-gated 入口
+- 单聊天窗口 session 页
+- 后台管理页
+- 全量验证、真实浏览器验收和线上部署复验
+
+本文件保留 MVP 里程碑记录，便于回溯；但它不再是当前唯一执行入口。
+
 ---
 
 ## Non-goals

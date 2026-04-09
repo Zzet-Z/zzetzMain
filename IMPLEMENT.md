@@ -13,8 +13,8 @@
 - `DOCUMENTATION.md` → 当前状态、阻塞项、上一步的决策
 
 然后深入阅读：
-- `docs/superpowers/plans/2026-04-08-personal-website-mvp.md` — 当前 Task 完整描述
-- `docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md` — 产品规格（有行为疑问时读）
+- 当前活跃实施计划（以 `AGENTS.md` 的 `Reference documents` 为准） — 当前 Task 完整描述
+- 当前活跃产品规格（以 `AGENTS.md` 的 `Reference documents` 为准） — 产品规格（有行为疑问时读）
 
 最后阅读当前任务直接相关的代码、测试、配置。
 
@@ -144,7 +144,7 @@ git worktree remove ../zzetz-task-N
 这两条 CI 检查不是可选的——它们是架构边界的唯一强制执行机制。它们发现的问题，比事后 code review 发现的更便宜修复。
 
 ### Consistency check
-- 状态名是否与 Spec 一致（draft/queued/active/generating_document/completed/failed）？
+- 状态名是否与当前活跃 Spec 一致？
 - 路由是否统一在 `/api/sessions/...` 下？
 - 中文文案是否与 Spec 一致？
 

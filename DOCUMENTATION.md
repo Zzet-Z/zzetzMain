@@ -87,10 +87,13 @@
 - 将最新 spec / plan 拆解为待执行任务，写入 `DOCUMENTATION.md` 的 `Not started` 与 `Pending execution tasks`
 - 更新 `SESSION_CONTEXT.md`，把当前仓库从“MVP 文档补齐阶段”切换为“chat-first 重构待实现阶段”
 - 更新 `AGENTS.md` 的参考规格、项目概览、前端验收口径和环境说明，使其与下一轮重构目标一致
+- 更新 `PLANS.md` 与 `IMPLEMENT.md`，让根级执行入口也明确指向 `2026-04-09` 的 chat-first spec / plan，而不是继续默认回退到 `2026-04-08` 的 MVP 文档
 
 **Files changed**
 - `AGENTS.md`
 - `DOCUMENTATION.md`
+- `IMPLEMENT.md`
+- `PLANS.md`
 - `SESSION_CONTEXT.md`
 
 **Validation run**
