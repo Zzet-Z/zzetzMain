@@ -170,6 +170,37 @@ def test_welcome_initial_prompt_is_written_for_first_turn():
     assert "参考案例" in prompt
 
 
+def test_chat_system_prompt_covers_chat_first_contract():
+    prompt = load_prompt("chat_system.md")
+
+    assert "角色定义" in prompt
+    assert "回复语言与用户对象约束" in prompt
+    assert "对话方式约束" in prompt
+    assert "个人网站需求梳理重点" in prompt
+    assert "何时提议生成最终文档" in prompt
+    assert "结构化输出协议" in prompt
+    assert "网站目标" in prompt
+    assert "目标用户" in prompt
+    assert "信息结构" in prompt
+    assert "视觉风格" in prompt
+    assert "核心功能" in prompt
+    assert "信任" in prompt
+    assert "行动转化" in prompt
+    assert "只有在用户明确同意后" in prompt
+    assert "final_document" in prompt
+
+
+def test_render_final_document_prompt_covers_required_sections():
+    prompt = load_prompt("render_final_document.md")
+
+    assert "页面/模块建议" in prompt
+    assert "内容建议" in prompt
+    assert "视觉方向" in prompt
+    assert "功能需求" in prompt
+    assert "参考附件" in prompt
+    assert "其他备注与约束" in prompt
+
+
 def test_build_chat_request_uses_chinese_and_stage_prompt():
     request = build_chat_request(
         stage="positioning",
