@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`task/chat-first-redesign`
-- 当前状态：Task 1–6 的代码实现已完成并通过本地单测/构建；当前处于 Task 7，本地真实浏览器验收已完成主要链路，下一步是线上部署与线上复验
-- 当前应执行任务：按 `OPERATIONS.md` 将当前分支内容部署到线上，再做一次线上 agent-browser 端到端测试
-- 当前代码状态：首页已切到 token-gated 入口，session 页已切到单聊天窗口，`/admin` 页面可管理 token；后端已切为 chat-first/token-gated 契约并通过全量测试
+- 当前状态：Task 1–6 的代码实现已完成并通过本地单测/构建；Task 7 的本地验收已完成主要链路，但线上部署被 SSH 认证阻塞
+- 当前应执行任务：先补可用的 `root@129.204.9.74` SSH 凭据，再按 `OPERATIONS.md` 执行部署脚本和线上 agent-browser 复验
+- 当前代码状态：首页已切到 token-gated 入口，session 页已切到单聊天窗口，`/admin` 页面可管理 token；后端已切为 chat-first/token-gated 契约并通过全量测试；`origin/main` 已包含这轮实现
 
 ## 已完成的关键文档
 - MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -74,18 +74,19 @@
 - Task 7：进行中（本地验收已做，待线上部署与线上复验）
 
 ## 下一次会话最应该做什么
-下一次会话如果从当前 worktree 接着做，应直接进入线上部署与复验：
+下一次会话如果从当前 worktree 接着做，应优先解决服务器认证，再进入线上部署与复验：
 
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
 2. 确认本地 worktree 仍是 `task/chat-first-redesign`
-3. 按 `OPERATIONS.md` 更新线上代码并重启服务
-4. 使用 `agent-browser` 在线上验证：
+3. 确认可用的 SSH 凭据或服务器登录方式
+4. 按 `OPERATIONS.md` 更新线上代码并重启服务
+5. 使用 `agent-browser` 在线上验证：
    - 首页 token 入口
    - `/admin` 管理后台
    - token 创建
    - 聊天页加载
    - 至少一轮真实消息发送与文档生成
-5. 完成后回写 `DOCUMENTATION.md`、`SESSION_CONTEXT.md` 并决定合并/发布策略
+6. 完成后回写 `DOCUMENTATION.md`、`SESSION_CONTEXT.md` 并决定发布后清理动作
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -94,6 +95,7 @@
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `3d9623e` `docs: record chat-first implementation progress`
 - `5bd20b3` `fix: align admin frontend with api payloads`
 - `ae9c012` `feat: add admin token dashboard`
 - `b48f0a7` `feat: rebuild session page as single chat`
@@ -129,9 +131,9 @@
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
-- 当前改动仍在 `task/chat-first-redesign` worktree 分支，尚未回合并到 `main`
+- 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，但生产机尚未成功拉取
 - 本地 `agent-browser` 对 React 按钮 click 事件仍存在不稳定性，尤其体现在聊天页“发送”按钮；本地浏览器验收时需把“按钮可见 + 页面结构正确”与“点击是否稳定触发”分开记录
-- 线上环境还未部署这轮 chat-first 改动；最终验收必须以线上复验为准
+- 线上环境还未部署这轮 chat-first 改动；当前阻塞点是 `root@129.204.9.74` SSH 认证失败
 - 真实 LLM 主链路在百炼兼容层上依然偏慢；生产上一条消息可能包含“阶段回复 + 摘要提取”两次模型调用，因此部署时必须同步放宽 `gunicorn` 与 `nginx` 的超时窗口
 - `SessionRecord.status` 现在新增了“处理中结束后的在途状态”语义：`active` 只表示占用并发槽位的处理中请求，完成后会落到 `in_progress`，失败时落到 `failed`
 - 远端宿主机存在代理环境变量；`LLMClient` 已通过 `trust_env=False` 显式忽略宿主机代理，后续不要回退这个行为

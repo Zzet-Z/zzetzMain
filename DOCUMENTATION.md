@@ -6,7 +6,7 @@
 ## Current status
 - Current milestone: Chat-first redesign validation / deployment
 - Current task: Task 7 - 全量验证、真实浏览器验收与线上部署复验
-- Status: In progress
+- Status: Blocked on production SSH authentication
 - Last updated: 2026-04-09
 
 ---
@@ -19,13 +19,13 @@
 - [x] 工程执行规则文件已建立 (AGENTS.md, PLANS.md, IMPLEMENT.md, DOCUMENTATION.md)
 
 ### In progress
-- [ ] Task 7: 正在做本地真实浏览器验收、部署前收口和线上复验
+- [ ] Task 7: 本地真实浏览器验收已完成主要链路，等待线上部署复验
 
 ### Not started
 - [ ] 线上部署复验后的最终文档整理
 
 ### Blocked
-- （无）
+- [ ] `root@129.204.9.74` 的 SSH 认证失败，当前机器没有可用的部署凭据，导致无法执行 `OPERATIONS.md` 里的线上部署脚本
 
 ---
 
@@ -190,6 +190,33 @@
 **Outstanding**
 - `agent-browser` 在本地对 React “发送”按钮的 click 事件仍不稳定，导致“发送消息”动作无法稳定触发；这与此前项目中已知的 `agent-browser click` 不稳定问题一致
 - 下一步是按 `OPERATIONS.md` 部署到线上，再通过线上环境做一次真实浏览器复验，判断按钮问题是否仍然存在
+
+### [2026-04-09] Deployment attempt: 线上部署阻塞确认
+**Summary**
+- 已将 `task/chat-first-redesign` fast-forward 合回本地主工作区 `main`
+- 已把 `main` 推送到 `origin/main`
+- 按 `OPERATIONS.md` 尝试执行：
+  - `ssh -o StrictHostKeyChecking=accept-new root@129.204.9.74 'cd /opt/zzetzMain && BRANCH=main bash scripts/deploy-zzetz-cn.sh'`
+- 线上部署未进入脚本执行阶段，阻塞在 SSH 认证：当前机器对 `root@129.204.9.74` 没有可用凭据
+
+**Validation run**
+- 本地最终基线：
+  - `cd backend && pytest -q` -> `58 passed`
+  - `cd frontend && npm test` -> `19 passed`
+  - `cd frontend && npm run build` -> 通过
+- 本地 `agent-browser` 真实浏览器：
+  - 首页加载、CTA 展开 token 输入区
+  - `/admin` 页面加载
+  - 管理员 token 输入后后台可正常展示
+  - 通过后台真实签发 token
+  - 使用签发 token 从首页进入聊天页
+- 线上部署尝试：
+  - SSH 连接返回 `Permission denied (publickey,gssapi-keyex,gssapi-with-mic,password)`
+  - 显式指定 `~/.ssh/id_rsa` 后仍失败
+
+**Notes**
+- 线上阻塞是环境/凭据问题，不是仓库代码问题
+- 当前 `origin/main` 已包含 chat-first 全部实现与本地验证结果；只要补上服务器访问凭据，即可继续执行部署脚本和线上 E2E
 
 ### [2026-04-09] Planning handoff: chat-first redesign 文档收口与执行入口整理
 **Summary**
