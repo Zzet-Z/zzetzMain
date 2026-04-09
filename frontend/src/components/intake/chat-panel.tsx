@@ -89,7 +89,7 @@ export function ChatPanel({
         {isSending ? (
           <div className="flex justify-start">
             <div className="rounded-[24px] bg-white/6 px-4 py-3 text-[15px] text-white/88">
-              ...
+              思考中...
             </div>
           </div>
         ) : null}

@@ -110,7 +110,7 @@ test("发送消息后先显示 typing，再显示 assistant 回复", async () =>
   fireEvent.change(composer, { target: { value: "我想做一个个人网站" } });
   fireEvent.click(screen.getByRole("button", { name: "发送" }));
 
-  expect(screen.getByText("...")).toBeInTheDocument();
+  expect(screen.getByText("思考中...")).toBeInTheDocument();
   expect(await screen.findByText("我建议你先明确网站主要目标。")).toBeInTheDocument();
 
   await waitFor(() => {
