@@ -31,6 +31,14 @@ def get_default_config() -> dict[str, object]:
         "SECRET_KEY": os.environ.get("SECRET_KEY", "dev"),
         "DATABASE_URL": os.environ.get("DATABASE_URL", "sqlite:///app.db"),
         "UPLOAD_DIR": upload_dir,
+        "ADMIN_TOKEN": os.environ.get("ADMIN_TOKEN", ""),
+        "SESSION_IDLE_TIMEOUT_SECONDS": int(
+            os.environ.get("SESSION_IDLE_TIMEOUT_SECONDS", "300")
+        ),
+        "SESSION_EXPIRY_HOURS": int(os.environ.get("SESSION_EXPIRY_HOURS", "24")),
+        "SESSION_MESSAGES_PAGE_SIZE": int(
+            os.environ.get("SESSION_MESSAGES_PAGE_SIZE", "50")
+        ),
         "MAX_ACTIVE_SESSIONS": 5,
         "MAX_UPLOAD_SIZE_MB": 8,
         "MAX_UPLOAD_COUNT": 12,
