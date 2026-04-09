@@ -17,6 +17,8 @@ export type SessionStatus =
   | "completed"
   | "failed";
 
+export type ChatSessionStatus = SessionStatus | "awaiting_user" | "expired";
+
 export interface SessionMessage {
   id: number;
   role: "user" | "assistant";
@@ -82,4 +84,31 @@ export interface DocumentPayload {
   status: string;
   summary_text: string;
   prd_markdown: string;
+}
+
+export interface AdminTokenListItem {
+  token: string;
+  status: ChatSessionStatus;
+  admin_note?: string | null;
+  message_count?: number;
+  attachment_count?: number;
+  document_status?: string | null;
+  last_activity_at?: string | null;
+  origin_session_token?: string | null;
+  next_session_token?: string | null;
+}
+
+export interface AdminTokenDetail extends AdminTokenListItem {
+  created_at?: string | null;
+  completed_at?: string | null;
+  expires_at?: string | null;
+  previous_document_id?: number | null;
+  summary_text?: string | null;
+  prd_markdown?: string | null;
+  last_error?: string | null;
+}
+
+export interface CreateAdminTokenPayload {
+  admin_note?: string;
+  previous_document_id?: number;
 }

@@ -1,5 +1,8 @@
 import type {
+  AdminTokenDetail,
+  AdminTokenListItem,
   AttachmentPayload,
+  CreateAdminTokenPayload,
   DocumentPayload,
   MessagePayload,
   SessionMessage,
@@ -71,4 +74,51 @@ export async function uploadAttachment(
 export async function getDocument(token: string): Promise<DocumentPayload> {
   const response = await fetch(`${API_BASE}/sessions/${token}/document`);
   return parseJson<DocumentPayload>(response, "读取文档失败");
+}
+
+function createAdminHeaders(adminToken: string, withJson = false): HeadersInit {
+  return {
+    Authorization: `Bearer ${adminToken}`,
+    ...(withJson ? { "Content-Type": "application/json" } : {}),
+  };
+}
+
+export async function listAdminTokens(adminToken: string): Promise<AdminTokenListItem[]> {
+  const response = await fetch(`${API_BASE}/admin/tokens`, {
+    headers: createAdminHeaders(adminToken),
+  });
+  return parseJson<AdminTokenListItem[]>(response, "读取 token 列表失败");
+}
+
+export async function createAdminToken(
+  adminToken: string,
+  payload: CreateAdminTokenPayload,
+): Promise<AdminTokenDetail> {
+  const response = await fetch(`${API_BASE}/admin/tokens`, {
+    method: "POST",
+    headers: createAdminHeaders(adminToken, true),
+    body: JSON.stringify(payload),
+  });
+  return parseJson<AdminTokenDetail>(response, "签发 token 失败");
+}
+
+export async function getAdminTokenDetail(
+  adminToken: string,
+  token: string,
+): Promise<AdminTokenDetail> {
+  const response = await fetch(`${API_BASE}/admin/tokens/${token}`, {
+    headers: createAdminHeaders(adminToken),
+  });
+  return parseJson<AdminTokenDetail>(response, "读取 token 详情失败");
+}
+
+export async function revokeAdminToken(
+  adminToken: string,
+  token: string,
+): Promise<AdminTokenDetail> {
+  const response = await fetch(`${API_BASE}/admin/tokens/${token}/revoke`, {
+    method: "POST",
+    headers: createAdminHeaders(adminToken),
+  });
+  return parseJson<AdminTokenDetail>(response, "撤销 token 失败");
 }
