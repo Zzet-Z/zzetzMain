@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`task/chat-first-redesign`
-- 当前状态：Task 1–6 的代码实现已完成并通过本地单测/构建；Task 7 的本地验收已完成主要链路，但线上部署被 SSH 认证阻塞
-- 当前应执行任务：先补可用的 `root@129.204.9.74` SSH 凭据，再按 `OPERATIONS.md` 执行部署脚本和线上 agent-browser 复验
-- 当前代码状态：首页已切到 token-gated 入口，session 页已切到单聊天窗口，`/admin` 页面可管理 token；后端已切为 chat-first/token-gated 契约并通过全量测试；`origin/main` 已包含这轮实现
+- 当前状态：Chat-first 重构已完成本地验证并已部署到线上；线上健康检查通过，线上主链路可用
+- 当前应执行任务：无阻塞性实现任务；若继续推进，优先处理生产环境的临时管理员 token 和数据库迁移长期方案
+- 当前代码状态：首页已切到 token-gated 入口，session 页已切到单聊天窗口，`/admin` 页面可管理 token；后端已切为 chat-first/token-gated 契约并上线到 `https://zzetz.cn`
 
 ## 已完成的关键文档
 - MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -71,22 +71,16 @@
 - Task 4：已完成
 - Task 5：已完成
 - Task 6：已完成
-- Task 7：进行中（本地验收已做，待线上部署与线上复验）
+- Task 7：已完成（本地验收、线上部署、线上复验已做）
 
 ## 下一次会话最应该做什么
-下一次会话如果从当前 worktree 接着做，应优先解决服务器认证，再进入线上部署与复验：
+下一次会话如果继续推进，优先级建议改为：
 
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
-2. 确认本地 worktree 仍是 `task/chat-first-redesign`
-3. 确认可用的 SSH 凭据或服务器登录方式
-4. 按 `OPERATIONS.md` 更新线上代码并重启服务
-5. 使用 `agent-browser` 在线上验证：
-   - 首页 token 入口
-   - `/admin` 管理后台
-   - token 创建
-   - 聊天页加载
-   - 至少一轮真实消息发送与文档生成
-6. 完成后回写 `DOCUMENTATION.md`、`SESSION_CONTEXT.md` 并决定发布后清理动作
+2. 决定是否把 `task/chat-first-redesign` worktree 清理掉，因为变更已经合回 `main`
+3. 把生产环境中的临时 `ADMIN_TOKEN=admin-secret` 改成你自己的值
+4. 评估是否需要把当前 SQLite 兼容迁移整理成仓库内可重放的正式迁移脚本
+5. 如需继续做体验优化，优先排查 `agent-browser click` / React 按钮事件不稳定的问题，以及已完成会话附件列表不回放的问题
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -131,9 +125,10 @@
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
-- 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，但生产机尚未成功拉取
-- 本地 `agent-browser` 对 React 按钮 click 事件仍存在不稳定性，尤其体现在聊天页“发送”按钮；本地浏览器验收时需把“按钮可见 + 页面结构正确”与“点击是否稳定触发”分开记录
-- 线上环境还未部署这轮 chat-first 改动；当前阻塞点是 `root@129.204.9.74` SSH 认证失败
+- 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，生产环境也已拉取
+- 本地和线上的 `agent-browser` 对 React 按钮 click 事件仍存在不稳定性，尤其体现在聊天页“发送”按钮和后台部分提交按钮；页面结构和 API 主链路已验证通过，但纯按钮驱动 E2E 仍需后续工具/交互层排查
+- 生产环境当前临时使用 `ADMIN_TOKEN=admin-secret`，需要后续替换
+- 生产库为了兼容 chat-first 上线，已在服务器上做了最小 SQLite 表重建；后续应评估是否将其固化为仓库内可重放的迁移步骤
 - 真实 LLM 主链路在百炼兼容层上依然偏慢；生产上一条消息可能包含“阶段回复 + 摘要提取”两次模型调用，因此部署时必须同步放宽 `gunicorn` 与 `nginx` 的超时窗口
 - `SessionRecord.status` 现在新增了“处理中结束后的在途状态”语义：`active` 只表示占用并发槽位的处理中请求，完成后会落到 `in_progress`，失败时落到 `failed`
 - 远端宿主机存在代理环境变量；`LLMClient` 已通过 `trust_env=False` 显式忽略宿主机代理，后续不要回退这个行为

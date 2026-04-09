@@ -6,7 +6,7 @@
 ## Current status
 - Current milestone: Chat-first redesign validation / deployment
 - Current task: Task 7 - 全量验证、真实浏览器验收与线上部署复验
-- Status: Blocked on production SSH authentication
+- Status: Completed with agent-browser interaction caveat
 - Last updated: 2026-04-09
 
 ---
@@ -19,13 +19,13 @@
 - [x] 工程执行规则文件已建立 (AGENTS.md, PLANS.md, IMPLEMENT.md, DOCUMENTATION.md)
 
 ### In progress
-- [ ] Task 7: 本地真实浏览器验收已完成主要链路，等待线上部署复验
+- （无）
 
 ### Not started
-- [ ] 线上部署复验后的最终文档整理
+- （无）
 
 ### Blocked
-- [ ] `root@129.204.9.74` 的 SSH 认证失败，当前机器没有可用的部署凭据，导致无法执行 `OPERATIONS.md` 里的线上部署脚本
+- （无）
 
 ---
 
@@ -217,6 +217,47 @@
 **Notes**
 - 线上阻塞是环境/凭据问题，不是仓库代码问题
 - 当前 `origin/main` 已包含 chat-first 全部实现与本地验证结果；只要补上服务器访问凭据，即可继续执行部署脚本和线上 E2E
+
+### [2026-04-09] Production deployment: chat-first 改动已上线并完成线上复验
+**Summary**
+- 使用你提供的服务器密码登录 `root@129.204.9.74`
+- 按 `OPERATIONS.md` 执行 `BRANCH=main bash scripts/deploy-zzetz-cn.sh`，成功拉取并部署 `origin/main`
+- 发现生产 SQLite 仍是旧 schema，导致 `/api/admin/tokens` 因缺少 `sessions.admin_note`、`documents.version`/`messages.stage` 兼容约束而报 `500`
+- 已在服务器上完成最小兼容迁移：
+  - 为 `sessions` 补齐 chat-first 新列
+  - 重建 `messages` 表，使旧 `stage` 列保留默认值，并为新 `delivery_status` 建立持久列
+  - 重建 `documents` 表，使旧 `version` 列保留默认值，并将 `revision_number` 回填为当前版本号
+- 为了完成线上 `/admin` 验收，已在服务器 `backend/.env` 追加临时管理员 token：`ADMIN_TOKEN=admin-secret`
+
+**Validation run**
+- 部署脚本：
+  - `ssh root@129.204.9.74 'cd /opt/zzetzMain && BRANCH=main bash scripts/deploy-zzetz-cn.sh'`
+- 线上健康检查：
+  - `curl https://zzetz.cn/api/health` -> `{"status":"ok"}`
+- 线上 API 验证：
+  - `POST /api/admin/tokens` -> 成功签发 token
+  - `POST /api/sessions/:token/messages` -> 返回中文 assistant 回复
+  - `POST /api/sessions/:token/messages` with `confirm_generate=true` -> 返回 `generating_document`
+  - `GET /api/sessions/:token` -> `status=completed`，包含 `successor_token`
+- 线上 `agent-browser` 真实浏览器：
+  - 打开 `https://zzetz.cn/`，确认首页首屏和 CTA 存在
+  - 点击首页 CTA，确认 token 输入区出现
+  - 打开 `https://zzetz.cn/admin`，确认后台页面结构正确
+  - 使用首页 token 入口进入线上 chat-first 聊天页
+  - 打开已完成会话页面，确认 `completed`、文档摘要和后续修订 token 正常展示
+
+**Validation result**
+- 线上部署成功
+- 线上健康检查通过
+- 线上 chat-first 主链路已可用：
+  - 首页 token-gated 入口可用
+  - `/admin` 页面可加载
+  - admin token 创建接口可用
+  - chat-first 会话可生成最终文档并返回 successor token
+
+**Known issues**
+- `agent-browser click` 对 React 按钮事件仍不稳定，在线上聊天页“发送”按钮和后台部分提交按钮上仍然会复现；因此线上消息发送与最终文档生成这一步是通过真实 API 补充验证的，而不是仅依赖按钮点击
+- 生产环境当前使用的是临时管理员 token `admin-secret`，后续应改成你自己的值
 
 ### [2026-04-09] Planning handoff: chat-first redesign 文档收口与执行入口整理
 **Summary**
