@@ -21,7 +21,7 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：Chat-first 重构和 F1-F6 follow-up 修复都已在本地代码中落地；上一轮上下文没有把状态写回文档，本轮已补做核对与归档
+- 当前状态：Chat-first 重构和 F1-F6 follow-up 修复都已在本地代码中落地并提交；上一轮上下文没有把状态写回文档，本轮已补做核对、归档与提交
 - 当前应执行任务：如继续推进，应转为提交 / 部署 / 线上复验，而不是重复实现 `Task F1-F6`
 - 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现
 
@@ -97,6 +97,7 @@
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `00af3d1` `fix: close post-launch chat-first gaps`
 - `730df9c` `fix: complete sessions after final document`
 - `572d2a1` `fix: clarify assistant thinking state`
 - `602c6b8` `feat: add repeatable sqlite migration script`
@@ -136,7 +137,7 @@
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
-- 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，但 F1-F6 这批 follow-up 修复尚未形成完整的新提交记录，上一轮主要遗漏的是落档而不是实现
+- 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，本轮又补了本地提交 `00af3d1`；是否继续推送和部署需要下一步明确执行
 - 本地 `agent-browser` 默认使用 `~/.agent-browser/config.json` 中固定的 `cdp: 9222` 配置，导致浏览器验收前需要先手动拉起 Chrome；本轮已恢复可用环境，但完整交互自动化仍受工具稳定性影响
 - 生产环境当前临时使用 `ADMIN_TOKEN=admin-secret`，需要后续替换
 - 完整页面级浏览器验收还需要在稳定浏览器配置下再补一轮，当前主要证据仍以代码、测试和构建验证为主

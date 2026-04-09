@@ -6,7 +6,7 @@
 ## Current status
 - Current milestone: Chat-first post-launch follow-up fixes
 - Current task: Task F1-F6 recovery sync - 已确认代码中的 6 个 follow-up 修复已落地，并补做状态归档
-- Status: Implemented locally, validated by tests/build, documentation now being synced
+- Status: Implemented locally, validated by tests/build, committed on `main`
 - Last updated: 2026-04-09
 
 ---
@@ -138,7 +138,8 @@
 
 **Notes**
 - 本条记录的目的不是新增实现，而是把“已在代码中完成、但未归档”的修复重新纳入正式项目记录
-- 下一步应优先补 commit 和 session/documentation 同步，而不是再次重复实现 F1-F6
+- 本轮已补提交：`00af3d1 fix: close post-launch chat-first gaps`
+- 下一步应转到部署与线上复验，而不是再次重复实现 F1-F6
 
 ### [2026-04-09] Production investigation: 明确定稿但未进入文档生成状态
 **Summary**
