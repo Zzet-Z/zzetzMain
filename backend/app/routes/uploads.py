@@ -1,8 +1,13 @@
 from flask import Blueprint, current_app, jsonify, request
 
 from ..db import SessionLocal
-from ..models import AttachmentRecord, SessionRecord
+from ..models import AttachmentRecord
+from ..services.session_lifecycle import (
+    COMPLETED_SESSION_MESSAGE,
+    EXPIRED_SESSION_MESSAGE,
+)
 from ..services.storage import save_upload
+from .sessions import load_session_for_frontend
 
 
 uploads_bp = Blueprint("uploads", __name__)
@@ -11,9 +16,12 @@ uploads_bp = Blueprint("uploads", __name__)
 @uploads_bp.post("/sessions/<token>/attachments")
 def create_attachment(token: str):
     db = SessionLocal()
-    session = db.get(SessionRecord, token)
-    if session is None:
-        return jsonify({"message": "这次整理链接可能已失效，请重新开始。"}), 404
+    session, error = load_session_for_frontend(db, token)
+    if error is not None:
+        return jsonify(error[0]), error[1]
+
+    if session.status in {"completed", "failed"}:
+        return jsonify({"message": COMPLETED_SESSION_MESSAGE}), 409
 
     attachment_count = (
         db.query(AttachmentRecord)
@@ -35,6 +43,9 @@ def create_attachment(token: str):
         )
     except ValueError as exc:
         return jsonify({"message": str(exc)}), 400
+
+    if session.status == "expired":
+        return jsonify({"message": EXPIRED_SESSION_MESSAGE}), 410
 
     record = AttachmentRecord(
         session_token=token,

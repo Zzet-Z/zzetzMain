@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from flask import Blueprint, current_app, jsonify, request
 
 from ..db import SessionLocal
@@ -9,112 +11,214 @@ from ..models import (
     SummarySnapshot,
 )
 from ..services.document_renderer import render_document_bundle
-from ..services.intake_state_machine import next_stage_for_session
 from ..services.llm_client import LLMClient
-from ..services.llm_orchestrator import extract_summary_update, generate_stage_reply
+from ..services.llm_orchestrator import generate_chat_reply
 from ..services.queue_manager import reserve_slot
-from ..services.summary_builder import merge_summary, should_refresh_summary
+from ..services.session_lifecycle import (
+    EXPIRED_SESSION_MESSAGE,
+    FINISHED_SESSION_MESSAGE,
+    apply_session_lifecycle,
+    create_successor_session,
+    touch_session,
+    utcnow,
+)
 
 
 messages_bp = Blueprint("messages", __name__)
 
 
-@messages_bp.post("/sessions/<token>/messages")
-def create_message(token: str):
-    db = SessionLocal()
-    session = db.get(SessionRecord, token)
-
-    if session is None:
-        return jsonify({"message": "这次整理链接可能已失效，请重新开始。"}), 404
-
-    payload = request.get_json(silent=True) or {}
-    content = payload["content"]
-    user_action = payload.get("action", "answered")
-    generation_requested = payload.get("generation_requested", False)
-
-    status, queue_position = reserve_slot(
-        token,
-        current_app.config["MAX_ACTIVE_SESSIONS"],
+def _recent_messages(db, token: str, *, limit: int = 12) -> list[dict[str, str]]:
+    rows = (
+        db.query(MessageRecord)
+        .filter(MessageRecord.session_token == token)
+        .order_by(MessageRecord.id.desc())
+        .limit(limit)
+        .all()
     )
-    if status == "queued":
-        return jsonify(
-            {
-                "session_status": "queued",
-                "queue_position": queue_position,
-                "message": "当前正在为其他用户整理网站需求，你已进入等待队列。",
-                "poll_after_ms": 3000,
-            }
-        ), 202
+    return [
+        {"role": item.role, "content": item.content}
+        for item in reversed(rows)
+    ]
 
-    db.add(
-        MessageRecord(
-            session_token=token,
-            role="user",
-            content=content,
-            stage=session.current_stage,
-        )
+
+def _previous_document_markdown(db, previous_document_id: int | None) -> str | None:
+    if not previous_document_id:
+        return None
+    previous_document = db.get(DocumentRecord, previous_document_id)
+    if previous_document is None:
+        return None
+    return previous_document.prd_markdown
+
+
+def _latest_document(db, token: str) -> DocumentRecord | None:
+    return (
+        db.query(DocumentRecord)
+        .filter(DocumentRecord.session_token == token)
+        .order_by(DocumentRecord.id.desc())
+        .first()
     )
 
+
+def _latest_summary_payload(db, token: str) -> dict:
     latest_summary = (
         db.query(SummarySnapshot)
         .filter(SummarySnapshot.session_token == token)
         .order_by(SummarySnapshot.id.desc())
         .first()
     )
-    summary_payload = {} if latest_summary is None else latest_summary.payload
+    return {} if latest_summary is None else latest_summary.payload
 
-    if generation_requested:
-        document = (
-            db.query(DocumentRecord)
-            .filter(DocumentRecord.session_token == token)
-            .order_by(DocumentRecord.id.desc())
-            .first()
+
+def _queue_response(queue_position: int | None):
+    return (
+        jsonify(
+            {
+                "session_status": "queued",
+                "queue_position": queue_position,
+                "message": "当前正在为其他用户整理网站需求，你已进入等待队列。",
+                "poll_after_ms": 3000,
+            }
+        ),
+        202,
+    )
+
+
+def _run_with_retries(fn):
+    last_error = None
+    for _ in range(3):
+        try:
+            return fn()
+        except RuntimeError as exc:  # pragma: no cover - exercised through route tests
+            last_error = exc
+    raise last_error or RuntimeError("暂时无法继续整理需求，请稍后重试。")
+
+
+@messages_bp.post("/sessions/<token>/messages")
+def create_message(token: str):
+    db = SessionLocal()
+    session = db.get(SessionRecord, token)
+    if session is None:
+        from ..services.session_lifecycle import MISSING_SESSION_MESSAGE
+
+        return jsonify({"message": MISSING_SESSION_MESSAGE}), 404
+
+    apply_session_lifecycle(session, now=utcnow())
+    if session.status == "expired":
+        db.commit()
+        return jsonify({"message": EXPIRED_SESSION_MESSAGE}), 410
+    if session.status in {"completed", "failed"}:
+        return jsonify({"message": FINISHED_SESSION_MESSAGE}), 409
+
+    payload = request.get_json(silent=True) or {}
+    content = (payload.get("content") or "").strip()
+    confirm_generate = bool(payload.get("confirm_generate"))
+    if not content:
+        return jsonify({"message": "请输入你想补充的需求。"}), 400
+
+    slot_status, queue_position = reserve_slot(
+        token,
+        current_app.config["MAX_ACTIVE_SESSIONS"],
+    )
+    if slot_status == "queued":
+        return _queue_response(queue_position)
+    if slot_status == "expired":
+        return jsonify({"message": EXPIRED_SESSION_MESSAGE}), 410
+
+    session = db.get(SessionRecord, token)
+    now = utcnow()
+    touch_session(session, now=now, user_message=True)
+
+    db.add(
+        MessageRecord(
+            session_token=token,
+            role="user",
+            content=content,
+            delivery_status="final",
         )
+    )
+
+    if confirm_generate:
         attachments = (
             db.query(AttachmentRecord)
             .filter(AttachmentRecord.session_token == token)
             .order_by(AttachmentRecord.id.asc())
             .all()
         )
+        document = _latest_document(db, token)
+        if document is None:
+            document = DocumentRecord(session_token=token, revision_number=1)
+            db.add(document)
+            db.flush()
+
         session.status = "generating_document"
         try:
-            summary_text, prd_markdown = render_document_bundle(
-                summary_payload=summary_payload,
-                attachments=[
-                    {"file_name": item.file_name, "caption": item.caption}
-                    for item in attachments
-                ],
+            summary_text, prd_markdown = _run_with_retries(
+                lambda: render_document_bundle(
+                    summary_payload=_latest_summary_payload(db, token),
+                    attachments=[
+                        {"file_name": item.file_name, "caption": item.caption}
+                        for item in attachments
+                    ],
+                    previous_document=_previous_document_markdown(
+                        db,
+                        session.previous_document_id,
+                    ),
+                    recent_messages=_recent_messages(db, token),
+                )
             )
         except RuntimeError as exc:
             session.status = "failed"
             session.last_error = str(exc)
+            session.queued_at = None
+            session.active_started_at = None
             db.commit()
             return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
-        document.version += 1
+
         document.status = "ready"
         document.summary_text = summary_text
         document.prd_markdown = prd_markdown
+        document.root_document_id = document.root_document_id or document.id
         session.status = "completed"
+        session.completed_at = utcnow()
+        session.queued_at = None
+        session.active_started_at = None
+        create_successor_session(
+            db,
+            session=session,
+            document=document,
+            now=session.completed_at,
+        )
         db.commit()
-        return jsonify(
-            {
-                "session_status": "generating_document",
-                "message": "正在生成 PRD",
-                "poll_after_ms": 5000,
-            }
-        ), 202
+        return (
+            jsonify(
+                {
+                    "session_status": "generating_document",
+                    "message": "正在生成最终需求文档",
+                    "poll_after_ms": 5000,
+                }
+            ),
+            202,
+        )
 
     client = LLMClient.from_env()
     try:
-        assistant_reply = generate_stage_reply(
-            client,
-            stage=session.current_stage,
-            summary_payload=summary_payload,
-            recent_messages=[{"role": "user", "content": content}],
+        envelope = _run_with_retries(
+            lambda: generate_chat_reply(
+                client,
+                session_context={
+                    "previous_document": _previous_document_markdown(
+                        db,
+                        session.previous_document_id,
+                    )
+                },
+                recent_messages=_recent_messages(db, token),
+            )
         )
     except RuntimeError as exc:
         session.status = "failed"
         session.last_error = str(exc)
+        session.queued_at = None
+        session.active_started_at = None
         db.commit()
         return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
 
@@ -122,49 +226,24 @@ def create_message(token: str):
         MessageRecord(
             session_token=token,
             role="assistant",
-            content=assistant_reply,
-            stage=session.current_stage,
+            content=envelope["assistant_message"],
+            delivery_status="final",
         )
     )
-
-    stage_completed = payload.get("stage_completed", False)
-    if should_refresh_summary(
-        current_stage=session.current_stage,
-        stage_completed=stage_completed,
-        generation_requested=generation_requested,
-    ):
-        try:
-            extracted = extract_summary_update(
-                client,
-                current_stage=session.current_stage,
-                existing_summary=summary_payload,
-                recent_messages=[{"role": "user", "content": content}],
-            )
-        except RuntimeError as exc:
-            session.status = "failed"
-            session.last_error = str(exc)
-            db.commit()
-            return jsonify({"message": "暂时无法继续整理需求，请稍后重试。"}), 502
-        merged_summary = merge_summary(summary_payload, extracted)
-        db.add(SummarySnapshot(session_token=token, payload=merged_summary))
-    else:
-        merged_summary = summary_payload
-
-    session.current_stage = next_stage_for_session(
-        current_stage=session.current_stage,
-        selected_template=session.selected_template,
-        selected_style=session.selected_style,
-        summary_payload=merged_summary,
-        user_action=user_action,
-    )
-    session.status = "in_progress"
+    session.status = "awaiting_user"
+    session.queued_at = None
+    session.active_started_at = None
+    touch_session(session, now=utcnow())
 
     db.commit()
-    return jsonify(
-        {
-            "assistant_reply": assistant_reply,
-            "current_stage": session.current_stage,
-            "session_status": session.status,
-            "poll_after_ms": 3000,
-        }
-    ), 201
+    return (
+        jsonify(
+            {
+                "assistant_reply": envelope["assistant_message"],
+                "conversation_intent": envelope["conversation_intent"],
+                "session_status": session.status,
+                "poll_after_ms": 3000,
+            }
+        ),
+        201,
+    )

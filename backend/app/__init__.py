@@ -18,12 +18,14 @@ def create_app(config_overrides=None):
     init_db(app.config["DATABASE_URL"])
     CORS(app, resources={r"/api/*": {"origins": app.config["FRONTEND_ORIGIN"]}})
 
+    from .routes.admin import admin_bp
     from .routes.documents import documents_bp
     from .routes.health import health_bp
     from .routes.messages import messages_bp
     from .routes.sessions import sessions_bp
     from .routes.uploads import uploads_bp
 
+    app.register_blueprint(admin_bp, url_prefix="/api")
     app.register_blueprint(documents_bp, url_prefix="/api")
     app.register_blueprint(health_bp, url_prefix="/api")
     app.register_blueprint(messages_bp, url_prefix="/api")
