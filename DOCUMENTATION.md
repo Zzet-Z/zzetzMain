@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Chat-first redesign implementation
-- Current task: Task 4 - 重构首页入口为 token-gated 流程
-- Status: Completed
+- Current milestone: Chat-first redesign validation / deployment
+- Current task: Task 7 - 全量验证、真实浏览器验收与线上部署复验
+- Status: In progress
 - Last updated: 2026-04-09
 
 ---
@@ -19,15 +19,10 @@
 - [x] 工程执行规则文件已建立 (AGENTS.md, PLANS.md, IMPLEMENT.md, DOCUMENTATION.md)
 
 ### In progress
-- [ ] Chat-first 重构继续推进中；Task 4 已完成，后续进入 session 页改造
+- [ ] Task 7: 正在做本地真实浏览器验收、部署前收口和线上复验
 
 ### Not started
-- [ ] Task 1: 重构后端数据模型、配置和 `.env.example`
-- [ ] Task 2: 落地 chat-first prompt、JSON envelope 和修订轮上下文注入
-- [ ] Task 3: 重写 session / message / document / admin API 与生命周期
-- [ ] Task 5: 将 session 页收敛为单聊天窗口并接入确认生成与消息分页
-- [ ] Task 6: 实现后台管理页与前端 admin API
-- [ ] Task 7: 全量验证、浏览器验收、文档回写
+- [ ] 线上部署复验后的最终文档整理
 
 ### Blocked
 - （无）
@@ -77,6 +72,124 @@
 ---
 
 ## Task log
+
+### [2026-04-09] Task 1-3: Chat-first 后端契约迁移
+**Summary**
+- 完成后端 chat-first 基础迁移：会话模型、配置、`.env.example`、prompt、JSON envelope、修订轮上下文注入
+- 重写 `sessions / messages / documents / admin / uploads` 后端契约，切到 token-gated + chat-first 模式
+- 增加 5 分钟资源释放、24 小时失效、`confirm_generate`、successor token、admin bearer 鉴权、revoke 和消息分页
+- 修复后端联调中的真实缺陷：
+  - 最新用户消息未进入 LLM 上下文
+  - `confirm_generate` 不能空内容触发
+  - `SummarySnapshot` 为空时最终文档摘要退化为“未确定”
+  - admin 修订 token 未校验来源文档
+  - 上传测试仍依赖旧匿名创建 session
+
+**Files changed**
+- `backend/app/config.py`
+- `backend/app/models.py`
+- `backend/app/schemas.py`
+- `.env.example`
+- `backend/app/prompts/chat_system.md`
+- `backend/app/prompts/welcome_initial.md`
+- `backend/app/prompts/welcome_revision.md`
+- `backend/app/prompts/render_final_document.md`
+- `backend/app/routes/admin.py`
+- `backend/app/routes/sessions.py`
+- `backend/app/routes/messages.py`
+- `backend/app/routes/documents.py`
+- `backend/app/routes/uploads.py`
+- `backend/app/services/admin_auth.py`
+- `backend/app/services/document_renderer.py`
+- `backend/app/services/llm_orchestrator.py`
+- `backend/app/services/queue_manager.py`
+- `backend/app/services/session_lifecycle.py`
+- `backend/tests/test_sessions_api.py`
+- `backend/tests/test_llm_orchestrator.py`
+- `backend/tests/test_queue_and_generation.py`
+- `backend/tests/test_admin_api.py`
+- `backend/tests/test_uploads_api.py`
+
+**Validation run**
+- 红灯与绿灯分阶段执行：
+  - `cd backend && pytest tests/test_sessions_api.py -q`
+  - `cd backend && pytest tests/test_llm_orchestrator.py -q`
+  - `cd backend && pytest tests/test_queue_and_generation.py -q`
+  - `cd backend && pytest tests/test_admin_api.py -q`
+  - `cd backend && pytest tests/test_uploads_api.py -q`
+- 后端全量：
+  - `cd backend && pytest -q`
+
+**Validation result**
+- 后端全量测试通过：`58 passed`
+- 当前后端已切到 chat-first/token-gated 契约，可支撑前端新页面
+
+**Notes**
+- `Task 1-3` 在执行中被合并为一个强耦合后端阶段处理，原因是模型字段、prompt 和 API 路由必须连续迁移，无法机械地逐 task 独立收口
+- 中间为了保持分支可运行，曾短暂引入旧阶段字段兼容层，最终已被 chat-first 路由替换为新外部契约
+
+### [2026-04-09] Task 4-6: 首页 token 入口、单聊天窗口与后台页
+**Summary**
+- 首页 CTA 不再匿名创建 session，改为展示 token 输入区并跳转到 `/session/:token`
+- 需求梳理页已收敛为单聊天窗口：左右消息布局、typing 态、附件入口内嵌、`ready_to_generate` 确认按钮、加载更多消息、completed/expired/failed 禁用输入区
+- 新增 `/admin` 页面，支持管理员 token 输入、token 列表、详情、签发与 revoke
+- 修复真实浏览器中暴露出的 admin 前后端 payload 错配问题：后端 `/api/admin/tokens` 返回 `{ items: [...] }`，前端原本按数组直吃，真实 `/admin` 会直接崩空白页；现已对齐
+
+**Files changed**
+- `frontend/src/app.tsx`
+- `frontend/src/components/home/token-entry.tsx`
+- `frontend/src/components/intake/chat-panel.tsx`
+- `frontend/src/components/intake/attachment-panel.tsx`
+- `frontend/src/components/admin/token-create-form.tsx`
+- `frontend/src/components/admin/token-list.tsx`
+- `frontend/src/components/admin/token-detail.tsx`
+- `frontend/src/routes/home-page.tsx`
+- `frontend/src/routes/session-page.tsx`
+- `frontend/src/routes/admin-page.tsx`
+- `frontend/src/lib/api.ts`
+- `frontend/src/lib/types.ts`
+- `frontend/src/test/app-shell.test.tsx`
+- `frontend/src/test/home-page.test.tsx`
+- `frontend/src/test/session-page.test.tsx`
+- `frontend/src/test/session-flow.test.tsx`
+- `frontend/src/test/mobile-states.test.tsx`
+- `frontend/src/test/admin-page.test.tsx`
+
+**Validation run**
+- 按任务跑红灯/绿灯：
+  - `cd frontend && npm test -- app-shell.test.tsx home-page.test.tsx`
+  - `cd frontend && npm test -- session-page.test.tsx session-flow.test.tsx mobile-states.test.tsx`
+  - `cd frontend && npm test -- admin-page.test.tsx`
+- 前端全量：
+  - `cd frontend && npm test`
+- 构建：
+  - `cd frontend && npm run build`
+
+**Validation result**
+- 前端全量测试通过：`19 passed`
+- 前端构建通过
+
+**Notes**
+- `/admin` 的真实浏览器行为暴露了一个测试 mock 没覆盖到的契约错配；这类问题后续仍优先以真实浏览器结果为准
+- `agent-browser click` 对 React 按钮事件仍存在不稳定性，已在本地 E2E 中复现，后续验收记录需明确标注
+
+### [2026-04-09] Task 7: 本地真实浏览器验收与线上部署前收口
+**Summary**
+- 已完成本地全量基线验证：
+  - 后端 `58 passed`
+  - 前端 `19 passed`
+  - 前端构建通过
+- 已完成本地 `agent-browser` 真实浏览器的主要链路验证：
+  - 首页首屏加载正常
+  - CTA 可展开 token 输入区
+  - 通过 `/admin` 真实页面输入管理员 token 并签发新 token
+  - 使用签发 token 从首页进入聊天页
+  - 聊天页单窗口、附件入口、composer UI 正常渲染
+- 发现并修复 `/admin` 空白页问题，根因是前端 admin API 客户端与后端真实 payload 形状不一致
+
+**Outstanding**
+- `agent-browser` 在本地对 React “发送”按钮的 click 事件仍不稳定，导致“发送消息”动作无法稳定触发；这与此前项目中已知的 `agent-browser click` 不稳定问题一致
+- 下一步是按 `OPERATIONS.md` 部署到线上，再通过线上环境做一次真实浏览器复验，判断按钮问题是否仍然存在
 
 ### [2026-04-09] Planning handoff: chat-first redesign 文档收口与执行入口整理
 **Summary**
