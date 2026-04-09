@@ -12,6 +12,27 @@ DOCUMENT_RENDER_TIMEOUT = 45.0
 CHAT_REPLY_TIMEOUT = 90.0
 
 logger = logging.getLogger(__name__)
+FINAL_DOCUMENT_MARKERS = (
+    "需求文档",
+    "项目目标",
+    "网站目标",
+    "目标用户",
+    "视觉风格",
+    "页面结构",
+    "功能需求",
+)
+FINAL_DOCUMENT_CONFIRMATIONS = (
+    "生成需求文档",
+    "生成文档",
+    "开始生成",
+    "开始整理",
+    "定稿",
+    "不用更新",
+    "不用改",
+    "就这个",
+    "确认",
+    "没问题",
+)
 
 
 def load_prompt(name: str) -> str:
@@ -27,10 +48,25 @@ def build_chat_input(*, session_context: dict, recent_messages: list[dict]) -> s
     else:
         previous_document_text = "无"
 
+    attachments = session_context.get("attachments") or []
+    if attachments:
+        attachment_lines = []
+        for item in attachments:
+            file_name = str(item.get("file_name") or "").strip()
+            if not file_name:
+                continue
+            caption = str(item.get("caption") or "").strip()
+            attachment_lines.append(f"- {file_name}" + (f"：{caption}" if caption else ""))
+        attachment_text = "\n".join(attachment_lines) if attachment_lines else "无"
+    else:
+        attachment_text = "无"
+
     history = "\n".join(f"{item['role']}: {item['content']}" for item in recent_messages)
     return (
         "上一版最终文档：\n"
         f"{previous_document_text}\n\n"
+        "本轮参考附件：\n"
+        f"{attachment_text}\n\n"
         "最近对话：\n"
         f"{history}\n\n"
         "请严格按照系统提示输出 JSON envelope。"
@@ -94,6 +130,29 @@ def _parse_chat_envelope(raw: str) -> dict | None:
     }
 
 
+def _looks_like_final_document(raw: str) -> bool:
+    text = _strip_code_fence(raw)
+    if len(text.strip()) < 30:
+        return False
+
+    marker_hits = sum(1 for marker in FINAL_DOCUMENT_MARKERS if marker in text)
+    has_heading = text.lstrip().startswith("#") or "需求文档" in text
+    return has_heading and marker_hits >= 2
+
+
+def _user_confirmed_final_document(recent_messages: list[dict]) -> bool:
+    user_messages = [
+        str(item.get("content") or "").strip()
+        for item in recent_messages
+        if item.get("role") == "user"
+    ]
+    if not user_messages:
+        return False
+
+    latest_user_message = user_messages[-1]
+    return any(marker in latest_user_message for marker in FINAL_DOCUMENT_CONFIRMATIONS)
+
+
 def generate_chat_reply(client, *, session_context: dict, recent_messages: list[dict]) -> dict:
     response = client.generate(
         instructions=load_prompt("chat_system.md"),
@@ -104,6 +163,8 @@ def generate_chat_reply(client, *, session_context: dict, recent_messages: list[
     payload = _parse_chat_envelope(raw)
     if payload is None:
         logger.warning("llm envelope parse failed")
+        if _user_confirmed_final_document(recent_messages) and _looks_like_final_document(raw):
+            return {"assistant_message": raw, "conversation_intent": "final_document"}
         return {"assistant_message": raw, "conversation_intent": "continue"}
     return payload
 

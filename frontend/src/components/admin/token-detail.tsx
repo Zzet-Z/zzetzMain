@@ -17,6 +17,25 @@ function DetailRow({ label, value }: { label: string; value?: string | number | 
   );
 }
 
+function formatTimestamp(value?: string | null): string {
+  if (!value) {
+    return "无";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function TokenDetail({ detail, isLoading, isRevoking, onRevoke }: TokenDetailProps) {
   return (
     <section className="rounded-[28px] border border-white/10 bg-[var(--color-surface-2)] px-5 py-5 sm:px-6">
@@ -51,10 +70,16 @@ export function TokenDetail({ detail, isLoading, isRevoking, onRevoke }: TokenDe
           <div className="grid gap-3 sm:grid-cols-2">
             <DetailRow label="状态" value={detail.status} />
             <DetailRow label="备注" value={detail.admin_note} />
+            <DetailRow label="消息数" value={detail.message_count} />
+            <DetailRow label="附件数" value={detail.attachment_count} />
             <DetailRow label="文档状态" value={detail.document_status} />
             <DetailRow label="后续修订 Token" value={detail.next_session_token} />
             <DetailRow label="来源会话" value={detail.origin_session_token} />
             <DetailRow label="来源文档 ID" value={detail.previous_document_id} />
+            <DetailRow label="创建时间" value={formatTimestamp(detail.created_at)} />
+            <DetailRow label="最近活跃" value={formatTimestamp(detail.last_activity_at)} />
+            <DetailRow label="完成时间" value={formatTimestamp(detail.completed_at)} />
+            <DetailRow label="失效时间" value={formatTimestamp(detail.expires_at)} />
           </div>
 
           <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4">
@@ -62,6 +87,45 @@ export function TokenDetail({ detail, isLoading, isRevoking, onRevoke }: TokenDe
             <p className="mt-3 whitespace-pre-wrap text-[15px] leading-[1.8] text-white/74">
               {detail.summary_text || "暂无摘要。"}
             </p>
+          </div>
+
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4">
+            <p className="text-[12px] uppercase tracking-[0.18em] text-white/36">最终文档</p>
+            <pre className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-[1.75] text-white/72">
+              {detail.prd_markdown || "暂无最终文档。"}
+            </pre>
+          </div>
+
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4">
+            <p className="text-[12px] uppercase tracking-[0.18em] text-white/36">附件</p>
+            {detail.attachments && detail.attachments.length > 0 ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {detail.attachments.map((item) => (
+                  <div
+                    key={`${item.id ?? item.file_name}-${item.created_at ?? ""}`}
+                    className="overflow-hidden rounded-[18px] border border-white/10 bg-black/25"
+                  >
+                    {item.preview_url ? (
+                      <div className="aspect-[4/3] bg-black/60">
+                        <img
+                          alt={`${item.file_name} 缩略图`}
+                          className="h-full w-full object-cover"
+                          src={item.preview_url}
+                        />
+                      </div>
+                    ) : null}
+                    <div className="space-y-1 px-3 py-3">
+                      <p className="truncate text-[13px] font-medium text-white/86">{item.file_name}</p>
+                      {item.caption ? (
+                        <p className="text-[12px] leading-[1.6] text-white/48">{item.caption}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-[14px] text-white/52">暂无附件。</p>
+            )}
           </div>
 
           {detail.last_error ? (

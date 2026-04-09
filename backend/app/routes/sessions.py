@@ -32,6 +32,7 @@ def serialize_attachment(record: AttachmentRecord) -> dict[str, object]:
         "caption": record.caption,
         "mime_type": record.mime_type,
         "created_at": record.created_at,
+        "preview_url": f"/api/sessions/{record.session_token}/attachments/{record.id}/preview",
     }
 
 

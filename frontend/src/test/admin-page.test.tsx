@@ -62,6 +62,7 @@ beforeEach(() => {
         previous_document_id: body.previous_document_id ?? null,
         previous_summary: "上一版摘要",
         document: { status: "pending", summary_text: "", prd_markdown: "" },
+        attachments: [],
         summary_text: null,
         prd_markdown: null,
         last_error: null,
@@ -210,6 +211,14 @@ test("管理员点击列表项后可以查看 token 详情", async () => {
     next_session_token: "next-token",
     previous_document_id: 9,
     previous_summary: "这是上一轮整理后的摘要。",
+    attachments: [
+      {
+        id: 7,
+        file_name: "reference.png",
+        caption: "首页参考图",
+        preview_url: "/api/sessions/invite-token/attachments/7/preview",
+      },
+    ],
     document: { status: "ready", summary_text: "这是上一轮整理后的摘要。", prd_markdown: "# 最终文档" },
     summary_text: "这是上一轮整理后的摘要。",
     prd_markdown: "# 最终文档",
@@ -229,6 +238,10 @@ test("管理员点击列表项后可以查看 token 详情", async () => {
 
   expect(await screen.findByText("这是上一轮整理后的摘要。")).toBeInTheDocument();
   expect(screen.getByText("next-token")).toBeInTheDocument();
+  expect(screen.getByText("消息数")).toBeInTheDocument();
+  expect(screen.getByText("附件数")).toBeInTheDocument();
+  expect(screen.getByText("reference.png")).toBeInTheDocument();
+  expect(screen.getByText("# 最终文档")).toBeInTheDocument();
 });
 
 test("管理员可以撤销 token", async () => {
@@ -257,6 +270,7 @@ test("管理员可以撤销 token", async () => {
     next_session_token: null,
     previous_document_id: null,
     previous_summary: null,
+    attachments: [],
     document: { status: "pending", summary_text: "", prd_markdown: "" },
     summary_text: null,
     prd_markdown: null,

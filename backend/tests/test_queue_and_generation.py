@@ -3,7 +3,7 @@ from io import BytesIO
 
 from app import create_app
 from app.db import SessionLocal
-from app.models import DocumentRecord, MessageRecord, SessionRecord
+from app.models import AttachmentRecord, DocumentRecord, MessageRecord, SessionRecord
 
 
 def build_app(tmp_path, **overrides):
@@ -149,6 +149,134 @@ def test_message_route_includes_new_user_message_in_llm_context(tmp_path, monkey
         "role": "user",
         "content": "我想做一个摄影作品集网站",
     }
+
+
+def test_user_message_is_committed_before_llm_reply_returns(tmp_path, monkeypatch):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="committed-user-message-token")
+    captured = {}
+
+    def fake_generate_chat_reply(_client, *, session_context, recent_messages):
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(MessageRecord)
+                .filter(MessageRecord.session_token == "committed-user-message-token")
+                .order_by(MessageRecord.id.asc())
+                .all()
+            )
+            captured["persisted_messages"] = [
+                {"role": row.role, "content": row.content} for row in rows
+            ]
+        finally:
+            db.close()
+
+        return {
+            "assistant_message": "继续告诉我你最想突出哪些作品。",
+            "conversation_intent": "continue",
+        }
+
+    monkeypatch.setattr(
+        "app.routes.messages.generate_chat_reply",
+        fake_generate_chat_reply,
+        raising=False,
+    )
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: object())
+
+    response = client.post(
+        "/api/sessions/committed-user-message-token/messages",
+        json={"content": "我想先突出建筑摄影作品"},
+    )
+
+    assert response.status_code == 201
+    assert captured["persisted_messages"][-1] == {
+        "role": "user",
+        "content": "我想先突出建筑摄影作品",
+    }
+
+
+def test_message_route_includes_attachments_in_llm_context(tmp_path, monkeypatch):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="attachment-context-token")
+    captured = {}
+
+    with app.app_context():
+        db = SessionLocal()
+        try:
+            db.add(
+                AttachmentRecord(
+                    session_token="attachment-context-token",
+                    file_name="reference.png",
+                    file_path=str(tmp_path / "uploads" / "attachment-context-token" / "reference.png"),
+                    mime_type="image/png",
+                    caption="苹果官网风格参考",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+    def fake_generate_chat_reply(_client, *, session_context, recent_messages):
+        captured["session_context"] = session_context
+        return {
+            "assistant_message": "我已经看到你上传的参考图了。",
+            "conversation_intent": "continue",
+        }
+
+    monkeypatch.setattr(
+        "app.routes.messages.generate_chat_reply",
+        fake_generate_chat_reply,
+        raising=False,
+    )
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: object())
+
+    response = client.post(
+        "/api/sessions/attachment-context-token/messages",
+        json={"content": "参考我上传的图片继续整理"},
+    )
+
+    assert response.status_code == 201
+    assert captured["session_context"]["attachments"] == [
+        {
+            "file_name": "reference.png",
+            "caption": "苹果官网风格参考",
+            "mime_type": "image/png",
+        }
+    ]
+
+
+def test_plain_text_final_document_reply_still_completes_session(tmp_path, monkeypatch):
+    app = build_app(tmp_path)
+    client = app.test_client()
+    seed_session(app, token="plain-final-doc-token")
+
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            return type(
+                "Response",
+                (),
+                {
+                    "text": "# 个人摄影作品集网站需求文档\n\n## 1. 网站目标\n- 展示摄影作品\n\n## 2. 视觉风格\n- 黑白极简"
+                },
+            )()
+
+    monkeypatch.setattr("app.routes.messages.LLMClient.from_env", lambda: FakeClient())
+
+    response = client.post(
+        "/api/sessions/plain-final-doc-token/messages",
+        json={"content": "不用更新了 就这个"},
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 201
+    assert payload["session_status"] == "completed"
+    assert payload["successor_token"] is not None
+
+    document_payload = client.get("/api/sessions/plain-final-doc-token/document").get_json()
+    assert document_payload["status"] == "ready"
+    assert document_payload["prd_markdown"].startswith("# 个人摄影作品集网站需求文档")
 
 
 def test_document_generation_creates_successor_token(tmp_path, monkeypatch):

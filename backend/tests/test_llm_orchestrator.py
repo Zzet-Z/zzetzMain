@@ -28,6 +28,23 @@ def test_build_chat_input_includes_previous_document_and_history():
     assert "assistant: 可以，我们先梳理页面目标。" in input_text
 
 
+def test_build_chat_input_includes_attachment_context():
+    input_text = build_chat_input(
+        session_context={
+            "previous_document": None,
+            "attachments": [
+                {"file_name": "ref-1.png", "caption": "苹果官网风格参考"},
+                {"file_name": "ref-2.webp", "caption": ""},
+            ],
+        },
+        recent_messages=[{"role": "user", "content": "参考我上传的图片"}],
+    )
+
+    assert "本轮参考附件" in input_text
+    assert "ref-1.png：苹果官网风格参考" in input_text
+    assert "ref-2.webp" in input_text
+
+
 def test_generate_chat_reply_parses_json_envelope():
     class FakeClient:
         def generate(self, *, instructions, input_text, timeout=30.0):
@@ -85,6 +102,30 @@ def test_generate_chat_reply_falls_back_when_llm_returns_plain_text():
 
     assert payload["assistant_message"] == "我建议你先补充目标用户和转化动作。"
     assert payload["conversation_intent"] == "continue"
+
+
+def test_generate_chat_reply_infers_final_document_from_plain_text_markdown():
+    class FakeClient:
+        def generate(self, *, instructions, input_text, timeout=30.0):
+            return type(
+                "Response",
+                (),
+                {
+                    "text": "# 个人摄影作品集网站需求文档\n\n## 1. 网站目标\n- 展示作品\n\n## 2. 视觉风格\n- 黑白极简"
+                },
+            )()
+
+    payload = generate_chat_reply(
+        FakeClient(),
+        session_context={"previous_document": None},
+        recent_messages=[
+            {"role": "assistant", "content": "如果你确认，我就开始整理最终需求文档。"},
+            {"role": "user", "content": "不用更新了 就这个"},
+        ],
+    )
+
+    assert payload["conversation_intent"] == "final_document"
+    assert payload["assistant_message"].startswith("# 个人摄影作品集网站需求文档")
 
 
 def test_generate_chat_reply_includes_previous_document_context():

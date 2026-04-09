@@ -4,9 +4,9 @@
 > agent 只能看到仓库里的内容——每次任务结束后必须在此更新，否则信息对后续执行者不存在。
 
 ## Current status
-- Current milestone: Chat-first redesign validation / deployment
-- Current task: Task 7 - 全量验证、真实浏览器验收与线上部署复验
-- Status: Completed with agent-browser interaction caveat
+- Current milestone: Chat-first post-launch follow-up fixes
+- Current task: Task F1-F6 recovery sync - 已确认代码中的 6 个 follow-up 修复已落地，并补做状态归档
+- Status: Implemented locally, validated by tests/build, documentation now being synced
 - Last updated: 2026-04-09
 
 ---
@@ -19,10 +19,19 @@
 - [x] 工程执行规则文件已建立 (AGENTS.md, PLANS.md, IMPLEMENT.md, DOCUMENTATION.md)
 
 ### In progress
-- （无）
+- [x] 已整理上线后 follow-up 修复计划 (`docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`)
+- [x] 已回收并核对本地代码中的 follow-up 修复实现，确认状态文档此前滞后于代码
+
+### Completed
+- [x] Task F6：修复“明确定稿但未进入文档生成状态”
+- [x] Task F1：修复发送中用户消息消失
+- [x] Task F2：修复上传失败错误反馈缺失
+- [x] Task F3：把附件信息注入 LLM 对话上下文
+- [x] Task F4：实现聊天页附件缩略图与历史回放
+- [x] Task F5：扩展后台 token 详情查看数据
 
 ### Not started
-- （无）
+- [ ] 后续如需继续推进，应转到部署/线上复验，而不是重复实现 F1-F6
 
 ### Blocked
 - （无）
@@ -31,47 +40,176 @@
 
 ## Pending execution tasks
 
-当前批准进入实现的是 `docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md` 与 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`。
+当前主线 chat-first 重构和 F1-F6 follow-up 修复都已在本地代码中落地。新的执行入口不再是“继续实现 F1-F6”，而是：
 
-建议执行顺序如下：
-
-1. `Task 1`：先改后端模型与配置。
-   目标：去掉旧阶段字段，加入 chat-first 状态、修订链字段、`ADMIN_TOKEN` 和分页配置。
-   验证：`backend/tests/test_sessions_api.py` 中的模型与配置红绿灯测试。
-
-2. `Task 2`：再改 prompt 与 orchestrator。
-   目标：引入 `chat_system.md`、`welcome_initial.md`、`welcome_revision.md`、`render_final_document.md`，并完成 JSON envelope 解析、非 JSON fallback、上一版文档上下文注入。
-   验证：`backend/tests/test_llm_orchestrator.py`，特别是 envelope fallback 测试。
-
-3. `Task 3`：重写后端 API。
-   目标：完成 token 生命周期、`confirm_generate`、successor token、admin token 管理、revoke、消息分页和会话失效逻辑。
-   验证：`backend/tests/test_sessions_api.py`、`backend/tests/test_queue_and_generation.py`、`backend/tests/test_admin_api.py`。
-
-4. `Task 4`：改首页入口。
-  目标：首页保留五段式介绍，但不再匿名创建 session，改为 token 输入或受控访问入口。
-  验证：`frontend/src/test/app-shell.test.tsx`、`frontend/src/test/home-page.test.tsx`。
-
-5. `Task 5`：改聊天页。
-   目标：去掉阶段条、模板卡、摘要面板，保留单窗口消息流、typing 态、附件入口、`ready_to_generate` 确认按钮和“加载更多消息”。
-   验证：`frontend/src/test/session-page.test.tsx`、`frontend/src/test/session-flow.test.tsx`、`frontend/src/test/mobile-states.test.tsx`。
-
-6. `Task 6`：补后台管理页。
-   目标：完成 `/admin` 入口、管理员 token 输入、签发 token、token 列表、详情和 revoke。
-   验证：`frontend/src/test/admin-page.test.tsx`。
-
-7. `Task 7`：统一验收。
-   目标：跑后端全量测试、前端全量测试、前端构建，并使用 `agent-browser` 完成首页 / 聊天页 / 后台页真实浏览器验收。
-   验证：`cd backend && pytest -q`、`cd frontend && npm test`、`cd frontend && npm run build`、真实浏览器链路。
+1. 视需要将本地修复提交并部署到目标环境。
+2. 在稳定浏览器配置下补一次完整页面级复验，重点确认首页 token 入口、聊天页发送/上传/缩略图、后台详情与 revoke。
+3. 对生产环境重新抽样验证 F6/F1/F2/F3/F4/F5 的真实链路，确认线上行为与本地一致。
 
 ### Execution notes
 
-- 当前 `main` 分支上的代码仍然是阶段式 intake MVP；spec / plan 描述的是下一轮目标态，不是现状回放。
-- 下一轮长 coding 任务开始前，应优先按 `IMPLEMENT.md` 的 `Step 0.5` 评估是否使用独立 worktree。由于本轮会同时改数据库模型、路由层和前端主流程，默认建议使用 worktree。
-- 计划中的代码示例已经过多轮审查，但仍应按 TDD 实际跑红灯和绿灯，不要把 plan 当作“已验证实现”。
+- 这 6 个问题对应的代码和测试已经存在于当前工作区；此前遗漏的是 commit 与状态文档同步。
+- `730df9c fix: complete sessions after final document` 已经覆盖了 F6 的一部分；其余 F1-F5 和 F6 fallback 补强存在于当前未提交改动。
+- 浏览器验收在本轮已做本地恢复和页面加载验证，但受本机 `agent-browser` 默认 CDP 配置、前端端口/CORS 对齐和工具交互稳定性影响，完整页面级自动化链路建议在下一轮稳定浏览器配置后补齐。
+
+## Newly identified issues
+
+### [2026-04-09] 新增问题清单
+
+1. 上传图片失败时，前端没有展示真实错误原因。
+   当前表现：用户只看到固定失败文案，无法区分格式错误、大小超限、数量超限或 token 状态问题。
+   初步定位：`frontend/src/lib/api.ts` 的错误解析吞掉了后端返回的 `message`。
+
+2. 参考图片没有进入 LLM 对话上下文。
+   当前表现：用户上传参考图后，后续 assistant 回复看不见这些附件，只在最终文档阶段才使用附件列表。
+   初步定位：`backend/app/routes/messages.py` 调用 `generate_chat_reply()` 时没有传附件；`backend/app/services/llm_orchestrator.py` 的 `build_chat_input()` 也没有附件段落。
+
+3. 聊天页附件未展示缩略图。
+   当前表现：前端只显示文件名 chip，不显示图片预览，也缺少刷新后的历史回放。
+   初步定位：`backend/app/routes/sessions.py` 没有返回 preview URL；`frontend/src/components/intake/attachment-panel.tsx` 只支持文本列表。
+
+4. 后台“查看”缺少足够的数据。
+   当前表现：点击“查看”后只有少量基础字段，不能有效查看 token 的完整状态、附件和文档产出。
+   初步定位：`backend/app/routes/admin.py` detail payload 偏薄，`frontend/src/components/admin/token-detail.tsx` 也只渲染少量字段。
+
+5. LLM 思考期间，用户刚发送的消息会短暂消失。
+   当前表现：消息发出后先出现，随后被轮询刷新覆盖，直到 assistant 回复完成后才重新出现。
+   初步定位：`frontend/src/routes/session-page.tsx` 的轮询会覆盖 optimistic state；后端 `backend/app/routes/messages.py` 也在 LLM 调用完成前没有提交该条用户消息。
+
+6. 用户已经明确要求定稿时，系统仍未进入文档生成状态。
+   当前表现：assistant 已直接输出整份需求文档正文，但 session 仍停在 `awaiting_user`，`documents.status` 仍是 `pending`。
+   生产证据：`admin_note=zzttest1` 与 `admin_note=zzttest2` 的真实会话都出现了这个问题。
+   初步定位：`backend/app/services/llm_orchestrator.py` 当前只靠 prompt 约束模型输出 JSON envelope；模型一旦直接输出自然语言/Markdown 文档，fallback 会把它当作普通 `continue`。
 
 ---
 
 ## Task log
+
+### [2026-04-09] Task F1-F6 recovery sync: 代码已修，文档补归档
+**Summary**
+- 重新核对当前 `main` 工作区和最近提交后，确认 F1-F6 并非“待实现”，而是已经落在代码中：
+  - F6：plain text / markdown 最终文档会被识别为 `final_document`，并直接完成 session、落盘文档、创建 successor token
+  - F1：后端在 LLM 回复前先持久化用户消息；前端轮询不会覆盖 optimistic user message
+  - F2：前端 API 层会优先透传后端错误体中的中文 `message`
+  - F3：附件元数据已注入 chat LLM context，并进入 prompt 输入
+  - F4：附件返回 `preview_url`，聊天页展示缩略图并兼容历史回放
+  - F5：后台详情已补消息数、附件数、时间戳、附件列表与最终文档显示
+- 确认 `DOCUMENTATION.md` 和 `SESSION_CONTEXT.md` 先前仍停留在“planned / not started”，属于状态记录滞后，而不是实现缺失
+
+**Files changed**
+- `backend/app/prompts/chat_system.md`
+- `backend/app/routes/admin.py`
+- `backend/app/routes/messages.py`
+- `backend/app/routes/sessions.py`
+- `backend/app/routes/uploads.py`
+- `backend/app/services/llm_orchestrator.py`
+- `backend/tests/test_admin_api.py`
+- `backend/tests/test_llm_orchestrator.py`
+- `backend/tests/test_queue_and_generation.py`
+- `backend/tests/test_uploads_api.py`
+- `frontend/src/components/admin/token-detail.tsx`
+- `frontend/src/components/intake/attachment-panel.tsx`
+- `frontend/src/lib/api.ts`
+- `frontend/src/lib/types.ts`
+- `frontend/src/routes/session-page.tsx`
+- `frontend/src/test/admin-page.test.tsx`
+- `frontend/src/test/session-flow.test.tsx`
+- `frontend/src/test/session-page.test.tsx`
+- `docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- `cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py tests/test_uploads_api.py tests/test_admin_api.py -q`
+- `cd backend && pytest -q`
+- `cd frontend && npm test -- --run src/test/session-flow.test.tsx src/test/session-page.test.tsx src/test/admin-page.test.tsx`
+- `cd frontend && npm run build`
+- 本地浏览器复验：
+  - 已恢复本地后端和前端运行环境
+  - 已确认后台页可真实加载，管理员鉴权请求可命中本地 API
+  - 受本机 `agent-browser` 默认 CDP 配置和自动化交互稳定性影响，本轮仅完成页面加载与接口命中验证，完整页面级交互链路待在稳定浏览器配置下补齐
+
+**Validation result**
+- 后端针对性回归通过：`53 passed`
+- 后端全量通过：`66 passed`
+- 前端相关测试通过：`16 passed`
+- 前端生产构建通过
+- 代码层面与测试层面均支持“F1-F6 已修复”的结论
+
+**Notes**
+- 本条记录的目的不是新增实现，而是把“已在代码中完成、但未归档”的修复重新纳入正式项目记录
+- 下一步应优先补 commit 和 session/documentation 同步，而不是再次重复实现 F1-F6
+
+### [2026-04-09] Production investigation: 明确定稿但未进入文档生成状态
+**Summary**
+- 按 `OPERATIONS.md` 登录生产机，检查了 `admin_note=zzttest1` 与 `admin_note=zzttest2` 两个真实会话
+- 结论一致：
+  - session 状态都还是 `awaiting_user`
+  - `documents` 表里都只有一条 `status='pending'` 的空文档
+  - assistant 消息里已经直接输出了完整“需求文档正文”
+- 这说明问题不在“文档生成慢”，而在“模型回复没有被识别为进入文档生成的意图”
+- 当前根因判断：
+  - `chat_system.md` 只通过 prompt 要求 JSON envelope
+  - `LLMClient.generate()` 没有额外的结构化输出约束
+  - 一旦模型直接输出自然语言/Markdown 文档，`generate_chat_reply()` 的 fallback 就会把它记成普通 assistant 消息，并把 `conversation_intent` 退化成 `continue`
+
+**Production evidence**
+- `zzttest1` 对应 token：`DNrAWAmDhwn25WBWJq9FlXQZObG2MO8o`
+- `zzttest2` 对应 token：`ZaEhwQdgnjgd9zRhvNAQcbEtNrnqDt2m`
+- 两者共同特征：
+  - `sessions.status = awaiting_user`
+  - `documents.status = pending`
+  - `completed_at = NULL`
+  - assistant 已输出完整 PRD/需求文档正文
+
+**Files changed**
+- `docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- 生产机只读排查：
+  - 读取 `/opt/zzetzMain/backend/app.db` 中对应 session / messages / documents 数据
+  - 读取生产 `chat_system.md`
+  - 检查 `journalctl -u zzetz-backend`
+
+**Validation result**
+- 已确认第 6 个问题真实存在，且是当前 P0
+- 当前没有发现 500/timeout 类报错，属于意图识别和生成切换链路问题
+
+**Notes**
+- 这次排查没有修改生产数据
+- 后续修复应优先补测试，锁住“模型直接输出最终文档正文时不能退化成普通 continue”这个回归场景
+
+### [2026-04-09] Planning handoff: 新增 6 个上线后修复任务
+**Summary**
+- 根据最新反馈，确认当前主链路之外还有 6 个需要单独收口的问题：
+  - 明确定稿但未进入文档生成状态
+  - 上传失败无明确报错
+  - 参考图片未进入 LLM 对话上下文
+  - 附件缺少缩略图
+  - 后台“查看”信息不足
+  - LLM 思考期间用户消息会消失
+- 新增 follow-up 计划文档：`docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`
+- 将这些问题同步写入 `DOCUMENTATION.md` 与 `SESSION_CONTEXT.md`，作为下一轮实现入口
+- 按影响面将优先级整理为：
+  - P0：文档生成切换、消息消失、上传错误反馈、附件注入 LLM
+  - P1：附件缩略图、后台详情扩展
+
+**Files changed**
+- `docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- N/A（本次仅更新计划与交接文档，未修改代码）
+
+**Validation result**
+- 已形成正式 follow-up 任务入口，可直接按计划进入实现
+
+**Notes**
+- 本次没有执行代码级验证，也没有新增 git commit；后续开始实现时需要按各 Task 重新跑对应测试与浏览器验收
+- 当前 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md` 仍是已完成主线，新的修复工作请以 follow-up 计划补充执行
 
 ### [2026-04-09] Task 1-3: Chat-first 后端契约迁移
 **Summary**
@@ -950,7 +1088,12 @@
 ---
 
 ## Known issues
-（当前无已知问题）
+- 上传失败时前端没有透传真实中文错误原因
+- 用户已明确要求定稿时，LLM 仍可能直接输出 PRD 正文，但 session 没有进入文档生成状态
+- 附件尚未进入 LLM 对话上下文，当前只在最终文档渲染阶段使用
+- 聊天页附件只有文件名，没有缩略图与历史回放
+- 后台 token 详情数据偏少，“查看”不足以支撑排查和巡检
+- 轮询会覆盖 optimistic user message，导致发送中的消息短暂消失
 
 ---
 
@@ -971,8 +1114,8 @@
 ## Handoff notes
 给下一个执行者的说明：
 
-- 当前最应该继续的任务：**Milestone 8 / Task 8 — 实现需求梳理页六组件与 API 接线**
-- 执行依据：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md` 的 Task 8 部分
-- 不要动的区域：`docs/superpowers/` 下的 spec 和 plan 文件
-- 当前最大风险：Task 8 既涉及前端状态管理也涉及后端 API 契约，容易把未计划的前端路由或消息细节扩散开
-- 推荐先跑的验证命令：Task 8 从 `cd frontend && npm test -- session-page.test.tsx session-flow.test.tsx mobile-states.test.tsx` 开始，随后 `cd frontend && npm run build`
+- 当前最应该继续的任务：**Task F6 — 修复“明确定稿但未进入文档生成状态”**
+- 执行依据：`docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`
+- 下一优先级：`Task F1` 消息消失、`Task F2` 上传错误反馈、`Task F3` 附件注入 LLM
+- 当前最大风险：如果继续只依赖 prompt 文本约束 JSON envelope，真实模型仍会绕过 `ready_to_generate/final_document` 协议
+- 推荐先跑的验证命令：`cd backend && pytest tests/test_llm_orchestrator.py tests/test_queue_and_generation.py -q`

@@ -70,6 +70,15 @@ def _latest_summary_payload(db, token: str) -> dict:
     return {} if latest_summary is None else latest_summary.payload
 
 
+def _attachments_for_session(db, token: str) -> list[AttachmentRecord]:
+    return (
+        db.query(AttachmentRecord)
+        .filter(AttachmentRecord.session_token == token)
+        .order_by(AttachmentRecord.id.asc())
+        .all()
+    )
+
+
 def _queue_response(queue_position: int | None):
     return (
         jsonify(
@@ -152,14 +161,9 @@ def create_message(token: str):
         db.flush()
 
     recent_messages = _recent_messages(db, token)
+    attachments = _attachments_for_session(db, token)
 
     if confirm_generate:
-        attachments = (
-            db.query(AttachmentRecord)
-            .filter(AttachmentRecord.session_token == token)
-            .order_by(AttachmentRecord.id.asc())
-            .all()
-        )
         document = _latest_document(db, token)
         if document is None:
             document = DocumentRecord(session_token=token, revision_number=1)
@@ -229,7 +233,15 @@ def create_message(token: str):
                     "previous_document": _previous_document_markdown(
                         db,
                         session.previous_document_id,
-                    )
+                    ),
+                    "attachments": [
+                        {
+                            "file_name": item.file_name,
+                            "caption": item.caption,
+                            "mime_type": item.mime_type,
+                        }
+                        for item in attachments
+                    ],
                 },
                 recent_messages=recent_messages,
             )

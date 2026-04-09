@@ -10,7 +10,7 @@ from ..services.session_lifecycle import (
     create_token_session,
     utcnow,
 )
-from .sessions import serialize_document
+from .sessions import serialize_attachment, serialize_document
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -130,10 +130,25 @@ def get_admin_token_detail(token: str):
 
     apply_session_lifecycle(session, now=utcnow())
     document = _document_for_session(db, token)
+    message_count = (
+        db.query(MessageRecord).filter(MessageRecord.session_token == session.token).count()
+    )
+    attachments = (
+        db.query(AttachmentRecord)
+        .filter(AttachmentRecord.session_token == session.token)
+        .order_by(AttachmentRecord.id.asc())
+        .all()
+    )
     payload = {
         "token": session.token,
         "status": session.status,
         "admin_note": session.admin_note,
+        "message_count": message_count,
+        "attachment_count": len(attachments),
+        "created_at": session.created_at,
+        "last_activity_at": session.last_activity_at,
+        "completed_at": session.completed_at,
+        "expires_at": session.expires_at,
         "previous_summary": _previous_summary(db, session),
         "previous_document_id": session.previous_document_id,
         "origin_session_token": session.origin_session_token,
@@ -141,6 +156,8 @@ def get_admin_token_detail(token: str):
         "successor_token": session.next_session_token,
         "last_error": session.last_error,
         "document": serialize_document(document),
+        "document_status": document.status if document else "pending",
+        "attachments": [serialize_attachment(item) for item in attachments],
     }
     db.commit()
     return jsonify(payload)

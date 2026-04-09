@@ -20,16 +20,17 @@
 面向简体中文、非技术用户的个人网站需求梳理工具。首页建立产品认知，访客通过管理员签发的 token 进入 chat-first 需求对话页，由真实 LLM 输出中文摘要与最终需求文档，并通过 successor token 支持后续修订。
 
 ## 当前阶段
-- 当前分支：`task/chat-first-redesign`
-- 当前状态：Chat-first 重构已完成本地验证并已部署到线上；线上健康检查通过，线上主链路可用
-- 当前应执行任务：无阻塞性实现任务；若继续推进，优先处理生产环境的临时管理员 token 和体验类 follow-up
-- 当前代码状态：首页已切到 token-gated 入口，session 页已切到单聊天窗口，`/admin` 页面可管理 token；后端已切为 chat-first/token-gated 契约并上线到 `https://zzetz.cn`
+- 当前分支：`main`
+- 当前状态：Chat-first 重构和 F1-F6 follow-up 修复都已在本地代码中落地；上一轮上下文没有把状态写回文档，本轮已补做核对与归档
+- 当前应执行任务：如继续推进，应转为提交 / 部署 / 线上复验，而不是重复实现 `Task F1-F6`
+- 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现
 
 ## 已完成的关键文档
 - MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
 - MVP 实施计划：`docs/superpowers/plans/2026-04-08-personal-website-mvp.md`
 - Chat-first 重构规格：`docs/superpowers/specs/2026-04-09-chat-first-intake-redesign.md`
 - Chat-first 重构实施计划：`docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`
+- Chat-first 上线后修复计划：`docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`
 - 里程碑计划：`PLANS.md`
 - 执行规程：`IMPLEMENT.md`
 - 执行状态记录：`DOCUMENTATION.md`
@@ -64,7 +65,7 @@
 - 后端：Flask + SQLite
 
 ## 当前计划的实现范围
-当前活跃计划是 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`，主要覆盖：
+已完成的主线计划是 `docs/superpowers/plans/2026-04-09-chat-first-intake-redesign.md`，主要覆盖：
 - Task 1：已完成
 - Task 2：已完成
 - Task 3：已完成
@@ -73,13 +74,21 @@
 - Task 6：已完成
 - Task 7：已完成（本地验收、线上部署、线上复验已做）
 
+当前新增的活跃 follow-up 计划是 `docs/superpowers/plans/2026-04-09-chat-first-post-launch-fixes.md`，主要覆盖：
+- Task F6：已修复“明确定稿但未进入文档生成状态”
+- Task F1：已修复发送中用户消息消失
+- Task F2：已修复上传失败错误反馈缺失
+- Task F3：已实现附件信息注入 LLM 对话上下文
+- Task F4：已实现聊天页附件缩略图与历史回放
+- Task F5：已扩展后台 token 详情查看数据
+
 ## 下一次会话最应该做什么
 下一次会话如果继续推进，优先级建议改为：
 
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
-2. 决定是否把 `task/chat-first-redesign` worktree 清理掉，因为变更已经合回 `main`
-3. 把生产环境中的临时 `ADMIN_TOKEN=admin-secret` 改成你自己的值
-4. 如需继续做体验优化，优先排查 `agent-browser click` / React 按钮事件不稳定的问题，以及已完成会话附件列表不回放的问题
+2. 如果需要进入交付阶段，先检查本地未提交改动是否已经提交、推送并准备部署
+3. 在稳定的浏览器自动化配置下补做完整页面级验收，重点复验首页 token 入口、聊天页发送/上传/缩略图、后台详情与 revoke
+4. 对生产环境抽样复验 F6/F1/F2/F3/F4/F5 的真实链路，确认线上行为与本地一致
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -88,6 +97,8 @@
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `730df9c` `fix: complete sessions after final document`
+- `572d2a1` `fix: clarify assistant thinking state`
 - `602c6b8` `feat: add repeatable sqlite migration script`
 - `3d9623e` `docs: record chat-first implementation progress`
 - `5bd20b3` `fix: align admin frontend with api payloads`
@@ -125,9 +136,10 @@
 - `d80cdf3` `docs: refine plan interaction and llm flow`
 
 ## 风险提示
-- 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，生产环境也已拉取
-- 本地和线上的 `agent-browser` 对 React 按钮 click 事件仍存在不稳定性，尤其体现在聊天页“发送”按钮和后台部分提交按钮；页面结构和 API 主链路已验证通过，但纯按钮驱动 E2E 仍需后续工具/交互层排查
+- 当前 chat-first 实现已经合回本地 `main` 并推送到 `origin/main`，但 F1-F6 这批 follow-up 修复尚未形成完整的新提交记录，上一轮主要遗漏的是落档而不是实现
+- 本地 `agent-browser` 默认使用 `~/.agent-browser/config.json` 中固定的 `cdp: 9222` 配置，导致浏览器验收前需要先手动拉起 Chrome；本轮已恢复可用环境，但完整交互自动化仍受工具稳定性影响
 - 生产环境当前临时使用 `ADMIN_TOKEN=admin-secret`，需要后续替换
+- 完整页面级浏览器验收还需要在稳定浏览器配置下再补一轮，当前主要证据仍以代码、测试和构建验证为主
 - 仓库内已加入正式可重放的 SQLite 迁移脚本 `backend/app/db_migrations.py`，但生产机上已经做过一次手工表重建；后续若重建环境，应优先走脚本而不是重跑手工 SQL
 - 真实 LLM 主链路在百炼兼容层上依然偏慢；生产上一条消息可能包含“阶段回复 + 摘要提取”两次模型调用，因此部署时必须同步放宽 `gunicorn` 与 `nginx` 的超时窗口
 - `SessionRecord.status` 现在新增了“处理中结束后的在途状态”语义：`active` 只表示占用并发槽位的处理中请求，完成后会落到 `in_progress`，失败时落到 `failed`

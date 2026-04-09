@@ -29,14 +29,33 @@ export function AttachmentPanel({
         />
       </div>
       {attachments.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {attachments.map((item) => (
             <div
               key={`${item.file_name}-${item.created_at ?? item.id ?? "pending"}`}
-              className="rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-[12px] text-white/76"
+              className="overflow-hidden rounded-[22px] border border-white/10 bg-black/24"
             >
-              {item.file_name}
-              {item.caption ? ` · ${item.caption}` : ""}
+              {item.preview_url ? (
+                <div className="aspect-[4/3] bg-black/50">
+                  <img
+                    alt={`${item.file_name} 缩略图`}
+                    className="h-full w-full object-cover"
+                    src={item.preview_url}
+                  />
+                </div>
+              ) : (
+                <div className="flex aspect-[4/3] items-center justify-center bg-white/5 px-4 text-center text-[12px] tracking-[0.08em] text-white/36">
+                  暂无预览
+                </div>
+              )}
+              <div className="space-y-1 px-3 py-3">
+                <p className="truncate text-[13px] font-medium text-white/86">{item.file_name}</p>
+                {item.caption ? (
+                  <p className="text-[12px] leading-[1.55] text-white/46">
+                    {item.caption}
+                  </p>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>

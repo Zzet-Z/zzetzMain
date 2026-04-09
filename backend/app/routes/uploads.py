@@ -1,4 +1,6 @@
-from flask import Blueprint, current_app, jsonify, request
+from pathlib import Path
+
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from ..db import SessionLocal
 from ..models import AttachmentRecord
@@ -60,8 +62,36 @@ def create_attachment(token: str):
     db.commit()
     return jsonify(
         {
+            "id": record.id,
             "file_name": file_name,
             "caption": caption,
             "file_path": file_path,
+            "mime_type": record.mime_type,
+            "preview_url": f"/api/sessions/{token}/attachments/{record.id}/preview",
         }
     ), 201
+
+
+@uploads_bp.get("/sessions/<token>/attachments/<int:attachment_id>/preview")
+def get_attachment_preview(token: str, attachment_id: int):
+    db = SessionLocal()
+    session, error = load_session_for_frontend(db, token)
+    if error is not None:
+        return jsonify(error[0]), error[1]
+
+    record = (
+        db.query(AttachmentRecord)
+        .filter(
+            AttachmentRecord.session_token == session.token,
+            AttachmentRecord.id == attachment_id,
+        )
+        .first()
+    )
+    if record is None:
+        return jsonify({"message": "附件不存在。"}), 404
+
+    file_path = Path(record.file_path)
+    if not file_path.exists():
+        return jsonify({"message": "附件不存在。"}), 404
+
+    return send_file(file_path, mimetype=record.mime_type)

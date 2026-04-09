@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ChatPanel } from "../components/intake/chat-panel";
@@ -17,6 +17,49 @@ import type {
   SessionPayload,
   SessionStatus,
 } from "../lib/types";
+
+function attachmentIdentity(item: SessionAttachment): string {
+  return [
+    item.file_name.trim(),
+    item.caption?.trim() ?? "",
+    item.mime_type?.trim() ?? "",
+  ].join("|");
+}
+
+function mergeAttachments(
+  serverAttachments: SessionAttachment[],
+  currentAttachments: SessionAttachment[],
+): SessionAttachment[] {
+  const currentByIdentity = new Map<string, SessionAttachment>();
+  for (const item of currentAttachments) {
+    currentByIdentity.set(attachmentIdentity(item), item);
+  }
+
+  const merged = serverAttachments.map((item) => {
+    const current = currentByIdentity.get(attachmentIdentity(item));
+    return current ? { ...item, preview_url: item.preview_url ?? current.preview_url } : item;
+  });
+
+  for (const item of currentAttachments) {
+    const identity = attachmentIdentity(item);
+    if (!merged.some((serverItem) => attachmentIdentity(serverItem) === identity)) {
+      merged.push(item);
+    }
+  }
+
+  return merged;
+}
+
+function hasUserMessage(messages: SessionMessage[], content: string): boolean {
+  return messages.some((message) => message.role === "user" && message.content === content);
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
 
 function createInitialSession(token: string, status: SessionStatus, queuePosition?: number): SessionPayload {
   return {
@@ -53,23 +96,29 @@ export function SessionPage({
   const [documentState, setDocumentState] = useState<DocumentPayload | null>(null);
   const [messages, setMessages] = useState<SessionMessage[]>(session?.messages ?? []);
   const [attachments, setAttachments] = useState<SessionAttachment[]>(session?.attachments ?? []);
+  const [pendingUserMessage, setPendingUserMessage] = useState<SessionMessage | null>(null);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const messagesRef = useRef(messages);
+  const pendingUserMessageRef = useRef(pendingUserMessage);
   const sessionStatus = session?.status as string | undefined;
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    pendingUserMessageRef.current = pendingUserMessage;
+  }, [pendingUserMessage]);
 
   const composerDisabled =
     sessionStatus === "completed" ||
     sessionStatus === "expired" ||
     sessionStatus === "failed" ||
     sessionStatus === "generating_document";
-
-  useEffect(() => {
-    setMessages(session?.messages ?? []);
-    setAttachments(session?.attachments ?? []);
-  }, [session?.attachments, session?.messages]);
 
   useEffect(() => {
     if (session?.status === "completed") {
@@ -92,8 +141,22 @@ export function SessionPage({
         }
 
         setSession(payload);
-        setMessages(payload.messages ?? []);
-        setAttachments(payload.attachments ?? []);
+
+        const nextMessages = payload.messages ?? [];
+        const pendingMessage = pendingUserMessageRef.current;
+        const pendingSynced = pendingMessage
+          ? hasUserMessage(nextMessages, pendingMessage.content)
+          : false;
+        const currentMessages = messagesRef.current;
+
+        if (!pendingMessage || (pendingSynced && nextMessages.length >= currentMessages.length)) {
+          setMessages(nextMessages);
+          if (pendingSynced) {
+            setPendingUserMessage(null);
+          }
+        }
+
+        setAttachments((current) => mergeAttachments(payload.attachments ?? [], current));
         setErrorMessage("");
       } catch (_error) {
         if (!cancelled) {
@@ -153,6 +216,7 @@ export function SessionPage({
     };
 
     setMessages((current) => [...current, optimisticUserMessage]);
+    setPendingUserMessage(optimisticUserMessage);
     setDraft("");
     setIsSending(true);
 
@@ -187,8 +251,13 @@ export function SessionPage({
       setErrorMessage("");
     } catch (_error) {
       setMessages((current) => current.filter((message) => message.id !== optimisticUserMessage.id));
+      setPendingUserMessage((current) =>
+        current?.id === optimisticUserMessage.id ? null : current,
+      );
       setDraft(userContent);
-      setErrorMessage("暂时无法继续整理需求，请稍后重试。");
+      setErrorMessage(
+        getErrorMessage(_error, "暂时无法继续整理需求，请稍后重试。"),
+      );
     } finally {
       setIsSending(false);
     }
@@ -239,12 +308,43 @@ export function SessionPage({
       return;
     }
 
+    const previewUrl = URL.createObjectURL(file);
+    const optimisticAttachment: SessionAttachment = {
+      id: Date.now(),
+      file_name: file.name,
+      caption: "参考图片",
+      mime_type: file.type,
+      preview_url: previewUrl,
+    };
+
+    setAttachments((current) => [...current, optimisticAttachment]);
+    setErrorMessage("");
+
     try {
       const payload: AttachmentPayload = await uploadAttachment(token, file, "参考图片");
-      setAttachments((current) => [...current, payload]);
-      setErrorMessage("");
+      setAttachments((current) =>
+        current.map((item) =>
+          item.id === optimisticAttachment.id
+            ? {
+                ...item,
+                ...payload,
+                preview_url: payload.preview_url ?? item.preview_url,
+              }
+            : item,
+        ),
+      );
+
+      if (payload.preview_url && payload.preview_url !== previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
     } catch (_error) {
-      setErrorMessage("图片上传失败，请换一张图片后重试。");
+      URL.revokeObjectURL(previewUrl);
+      setAttachments((current) =>
+        current.filter((item) => item.id !== optimisticAttachment.id),
+      );
+      setErrorMessage(
+        getErrorMessage(_error, "图片上传失败，请换一张图片后重试。"),
+      );
     }
   }
 

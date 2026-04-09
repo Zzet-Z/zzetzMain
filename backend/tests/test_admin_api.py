@@ -223,12 +223,21 @@ def test_admin_can_list_and_read_token_detail(tmp_path):
 
     assert detail_response.status_code == 200
     assert detail_payload["token"] == "invite-token"
+    assert detail_payload["message_count"] == 2
+    assert detail_payload["attachment_count"] == 1
+    assert detail_payload["last_activity_at"] is not None
+    assert detail_payload["created_at"] is not None
+    assert detail_payload["completed_at"] is None
     assert detail_payload["document"]["summary_text"] == "这是摘要"
+    assert detail_payload["document"]["prd_markdown"] == "# 文档"
     assert detail_payload["previous_summary"] == "上一版摘要"
     assert detail_payload["successor_token"] == "successor-token"
     assert detail_payload["previous_document_id"] is not None
     assert detail_payload["origin_session_token"] == "origin-token"
     assert detail_payload["next_session_token"] == "successor-token"
+    assert detail_payload["attachments"][0]["file_name"] == "reference.png"
+    assert detail_payload["attachments"][0]["caption"] == "参考图"
+    assert detail_payload["attachments"][0]["preview_url"] == "/api/sessions/invite-token/attachments/1/preview"
 
 
 def test_admin_can_revoke_token(tmp_path):

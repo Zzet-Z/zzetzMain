@@ -16,7 +16,22 @@ const API_BASE = `${viteEnv?.VITE_API_BASE_URL ?? "http://127.0.0.1:5000"}/api`;
 
 async function parseJson<T>(response: Response, errorMessage: string): Promise<T> {
   if (!response.ok) {
-    throw new Error(errorMessage);
+    let message = errorMessage;
+    try {
+      const payload = (await response.clone().json()) as unknown;
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "message" in payload &&
+        typeof (payload as { message?: unknown }).message === "string" &&
+        (payload as { message?: string }).message?.trim()
+      ) {
+        message = (payload as { message: string }).message;
+      }
+    } catch {
+      // Ignore JSON parsing errors and keep the fallback message.
+    }
+    throw new Error(message);
   }
   return (await response.json()) as T;
 }

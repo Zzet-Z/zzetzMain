@@ -33,6 +33,7 @@ export interface SessionAttachment {
   caption: string;
   mime_type?: string;
   created_at?: string;
+  preview_url?: string | null;
 }
 
 export interface SessionDocument {
@@ -78,6 +79,7 @@ export interface AttachmentPayload {
   file_name: string;
   caption: string;
   file_path?: string;
+  preview_url?: string | null;
 }
 
 export interface DocumentPayload {
@@ -104,6 +106,7 @@ export interface AdminTokenDetail extends AdminTokenListItem {
   created_at?: string | null;
   completed_at?: string | null;
   expires_at?: string | null;
+  attachments?: SessionAttachment[];
   summary_text?: string | null;
   prd_markdown?: string | null;
   previous_summary?: string | null;

@@ -17,6 +17,14 @@ function buildSessionResponse(overrides: Record<string, unknown> = {}) {
         delivery_status: "system",
       },
     ],
+    attachments: [
+      {
+        id: 7,
+        file_name: "reference.png",
+        caption: "参考图",
+        preview_url: "blob:historical-preview",
+      },
+    ],
     has_more: false,
     oldest_message_id: 1,
     ...overrides,
@@ -54,6 +62,17 @@ test("聊天页只展示消息流、输入区和附件入口", async () => {
   expect(screen.queryByText("需求摘要")).not.toBeInTheDocument();
   expect(screen.getByPlaceholderText("继续描述你的网站需求")).toBeInTheDocument();
   expect(screen.getByLabelText("上传参考图片")).toBeInTheDocument();
+});
+
+test("历史附件带有 preview_url 时会展示缩略图", async () => {
+  render(
+    <MemoryRouter initialEntries={["/session/demo-token"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByRole("img", { name: "reference.png 缩略图" })).toBeInTheDocument();
+  expect(screen.getByText("reference.png")).toBeInTheDocument();
 });
 
 test("当会话进入 ready_to_generate 时展示确认按钮", async () => {

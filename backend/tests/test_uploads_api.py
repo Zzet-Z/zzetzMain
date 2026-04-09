@@ -47,6 +47,11 @@ def test_upload_respects_file_constraints(tmp_path):
     assert payload["file_name"] == "reference.png"
     assert payload["caption"] == "首页参考"
     assert Path(payload["file_path"]).exists()
+    assert payload["preview_url"] == f"/api/sessions/{token}/attachments/{payload['id']}/preview"
+
+    preview_response = client.get(payload["preview_url"])
+    assert preview_response.status_code == 200
+    assert preview_response.mimetype == "image/png"
 
 
 def test_upload_rejects_non_image_file(tmp_path):
