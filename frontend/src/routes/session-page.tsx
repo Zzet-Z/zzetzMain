@@ -161,7 +161,9 @@ export function SessionPage({
         setLoadErrorMessage("");
       } catch (_error) {
         if (!cancelled) {
-          setLoadErrorMessage("暂时无法读取当前会话，请稍后刷新重试。");
+          setLoadErrorMessage(
+            getErrorMessage(_error, "暂时无法读取当前会话，请稍后刷新重试。"),
+          );
         }
       }
     }
