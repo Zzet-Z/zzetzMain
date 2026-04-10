@@ -86,9 +86,40 @@
 下一次会话如果继续推进，优先级建议改为：
 
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
-2. 如果需要进入交付阶段，先检查本地未提交改动是否已经提交、推送并准备部署
-3. 在稳定的浏览器自动化配置下补做完整页面级验收，重点复验首页 token 入口、聊天页发送/上传/缩略图、后台详情与 revoke
+2. **首要任务：修复 TC-01 生产缺陷（首页 CTA 入口阻塞）**，详见下方"待修复缺陷"与 `E2E_TEST_CASES.md`
+3. 执行 `E2E_TEST_CASES.md` 中的 6 条端对端用例，逐一在 `https://zzetz.cn` 上复验
 4. 对生产环境抽样复验 F6/F1/F2/F3/F4/F5 的真实链路，确认线上行为与本地一致
+
+---
+
+## 生产环境浏览器验收结论（2026-04-10）
+
+本轮通过 Claude Code 浏览器自动化（`mcp__claude-in-chrome`）对 `https://zzetz.cn` 进行了完整页面级探索，结论如下：
+
+### 已验证正常
+- 首页五段式内容完整渲染（Hero / 痛点 / 流程 / 产出预览 / 底部 CTA）
+- 后台 `/admin` 鉴权登录正常，共 34 条 token 记录可见
+- 后台 token 签发：填写备注后"签发新 Token"，token 立即出现在列表，状态 `awaiting_user`，消息数为 1（欢迎语自动生成）
+- 已完成 session（`QR4ADmYU4z0CfHcvKvmhmPCHxP7yL-WD`）进入对话页：状态 `completed`，聊天历史正确渲染，弹框"您的网站将于3-24小时内上线"出现，顶部展示后续修订 Token
+- 弹框"确认"后正确跳转回首页
+- 修订会话（`WrjYCVPqAikNJVYnfntTMRDKdq_VHWES`）进入对话页：显示上一版摘要、修订欢迎语，底部输入区可用（文本框 + 选择文件 + 发送按钮）
+- 后台 token 详情面板：状态、备注、消息数、附件数、文档状态、后续修订 TOKEN、创建/完成/失效时间、摘要、最终文档 PRD 全文均正确展示
+
+### 待修复缺陷
+
+**BUG-01（P0）：首页 CTA 按钮进入永久 loading 态**
+- 现象：点击"开始梳理我的网站"后，按钮文案切换为"正在准备梳理页..."并永久停留，不弹出 token 输入框，不跳转 `/session/:token`
+- 预期：应展示 token 输入对话框，用户粘贴 token 后再跳转
+- 可能原因：`frontend/src/routes/home-page.tsx` 中 CTA 点击逻辑可能仍调用 `createSession()`（匿名创建），后端已拒绝匿名请求，但前端未处理失败态，导致 loading 永不结束
+- 建议排查：检查 `home-page.tsx` CTA onClick 逻辑，应替换为 token 输入 UI，移除 `createSession` 调用
+
+**BUG-02（P1）：新签发 token 的 session 页面永久 loading**
+- 现象：访问刚签发的新 token（`/session/kmfXpsQUwq_uyIPzUVqpxU0SldmbySrq`），页面只显示"正在加载..."，无法渲染聊天界面
+- 而已有多条消息的 awaiting_user token（`WrjYCVPqAikNJVYnfntTMRDKdq_VHWES`）可以正常加载
+- 可能原因：新签发 token 的 session `status` 字段与前端渲染逻辑不匹配（如状态为 `draft` 或 `in_progress` 而非 `awaiting_user`），前端轮询未正确处理初始状态
+
+### E2E 测试用例
+详见根目录 `E2E_TEST_CASES.md`，共 6 条，覆盖首页入口 / 后台管理 / 会话加载 / 消息发送 / 附件上传 / 文档生成全链路。
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
