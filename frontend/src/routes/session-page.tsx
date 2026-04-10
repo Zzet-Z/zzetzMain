@@ -101,6 +101,7 @@ export function SessionPage({
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [loadErrorMessage, setLoadErrorMessage] = useState("");
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const messagesRef = useRef(messages);
   const pendingUserMessageRef = useRef(pendingUserMessage);
@@ -157,10 +158,10 @@ export function SessionPage({
         }
 
         setAttachments((current) => mergeAttachments(payload.attachments ?? [], current));
-        setErrorMessage("");
+        setLoadErrorMessage("");
       } catch (_error) {
         if (!cancelled) {
-          setErrorMessage("暂时无法读取当前会话，请稍后刷新重试。");
+          setLoadErrorMessage("暂时无法读取当前会话，请稍后刷新重试。");
         }
       }
     }
@@ -384,10 +385,10 @@ export function SessionPage({
     );
   }
 
-  if (!session && errorMessage) {
+  if (!session && loadErrorMessage) {
     return (
       <main className="px-4 py-6 text-white">
-        <p>{errorMessage}</p>
+        <p>{loadErrorMessage}</p>
       </main>
     );
   }

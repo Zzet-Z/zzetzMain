@@ -297,6 +297,59 @@ test("上传失败时会展示后端返回的中文错误原因", async () => {
   expect(await screen.findByText("只支持 PNG、JPEG、WEBP 图片")).toBeInTheDocument();
 });
 
+test("轮询不会立即清掉上传失败错误", async () => {
+  let intervalCallback: (() => void) | null = null;
+  const setIntervalSpy = vi.spyOn(window, "setInterval").mockImplementation(((callback) => {
+    intervalCallback = () => {
+      if (typeof callback === "function") {
+        callback();
+      }
+    };
+    return 1 as unknown as number;
+  }) as typeof window.setInterval);
+  const clearIntervalSpy = vi.spyOn(window, "clearInterval").mockImplementation(() => undefined);
+
+  fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+
+    if (url.includes("/sessions/demo-token/attachments")) {
+      return new Response(
+        JSON.stringify({ message: "只支持 PNG、JPEG、WEBP 图片" }),
+        { status: 400 },
+      );
+    }
+
+    if (url.includes("/sessions/demo-token")) {
+      return new Response(JSON.stringify(buildSessionResponse()), { status: 200 });
+    }
+
+    return new Response(JSON.stringify({}), { status: 200 });
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/session/demo-token"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  const input = await screen.findByLabelText("上传参考图片");
+  const file = new File(["pdf"], "bad.pdf", { type: "application/pdf" });
+
+  fireEvent.change(input, { target: { files: [file] } });
+
+  expect(await screen.findByText("只支持 PNG、JPEG、WEBP 图片")).toBeInTheDocument();
+
+  await act(async () => {
+    intervalCallback?.();
+    await Promise.resolve();
+  });
+
+  expect(screen.getByText("只支持 PNG、JPEG、WEBP 图片")).toBeInTheDocument();
+
+  setIntervalSpy.mockRestore();
+  clearIntervalSpy.mockRestore();
+});
+
 test("有更多历史消息时可以点击加载更多", async () => {
   render(
     <MemoryRouter initialEntries={["/session/demo-token"]}>

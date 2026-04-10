@@ -172,7 +172,8 @@ server {
 EOF
 
 systemctl daemon-reload
-systemctl enable --now "$SERVICE_NAME"
+systemctl enable "$SERVICE_NAME"
+systemctl restart "$SERVICE_NAME"
 nginx -t
 systemctl reload nginx
 
