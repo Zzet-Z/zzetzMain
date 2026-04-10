@@ -5,8 +5,8 @@
 
 ## Current status
 - Current milestone: Chat-first post-launch follow-up fixes
-- Current task: Production redeploy and post-deploy E2E rerun
-- Status: Frontend hardening has been deployed to production; health checks passed; public API and direct session path revalidated; homepage/admin button clicks via agent-browser remain inconclusive
+- Current task: Production Playwright rerun and deploy hardening
+- Status: Production rerun is complete; deploy script now restarts backend processes on every release, attachment preview works again, and Playwright-based TC-05 / TC-06 validation passed on `https://zzetz.cn`
 - Last updated: 2026-04-10
 
 ---
@@ -40,17 +40,79 @@
 
 ## Pending execution tasks
 
-当前主线 chat-first 重构和 F1-F6 follow-up 修复都已在本地代码中落地。新的执行入口不再是“继续实现 F1-F6”，而是：
+当前主线 chat-first 重构、F1-F6 follow-up 修复，以及这一轮生产部署 / 公网复验都已完成。后续如果继续推进，优先级改为：
 
-1. 视需要将本地修复提交并部署到目标环境。
-2. 在稳定浏览器配置下补一次完整页面级复验，重点确认首页 token 入口、聊天页发送/上传/缩略图、后台详情与 revoke。
-3. 对生产环境重新抽样验证 F6/F1/F2/F3/F4/F5 的真实链路，确认线上行为与本地一致。
+1. 将生产临时 `ADMIN_TOKEN=admin-secret` 替换为正式安全值，并同步更新运维说明。
+2. 决定是否把 repo 内 `skills/playwright/` 纳入正式工具链，或改为忽略本地辅助目录（当前 `skills/`、`.playwright-cli/`、`output/` 未纳入运行时代码）。
+3. 如需继续做公网回归，优先沿用 Playwright CLI，而不是回到 `agent-browser` 点击链路。
 
 ### Execution notes
 
 - 这 6 个问题对应的代码和测试已经存在于当前工作区；此前遗漏的是 commit 与状态文档同步。
 - `730df9c fix: complete sessions after final document` 已经覆盖了 F6 的一部分；其余 F1-F5 和 F6 fallback 补强存在于当前未提交改动。
 - 浏览器验收在本轮已做本地恢复和页面加载验证，但受本机 `agent-browser` 默认 CDP 配置、前端端口/CORS 对齐和工具交互稳定性影响，完整页面级自动化链路建议在下一轮稳定浏览器配置后补齐。
+
+### [2026-04-10] Production rerun: 修复部署脚本重启缺口并完成 Playwright 公网复验
+**Summary**
+- 继续排查生产附件预览 `500`，确认根因不在上传路由逻辑，而在部署脚本：
+  - 服务器代码文件已经更新到新版本
+  - 但 `zzetz-backend` 在原脚本中只执行了 `systemctl enable --now`，对已运行服务不会强制重启
+  - 导致 gunicorn 持续运行旧内存代码，线上仍按旧逻辑去读 `/opt/zzetzMain/backend/app/uploads/...`
+- 已修复部署脚本，使其在每次发布后显式执行 `systemctl restart zzetz-backend`
+- 同步修了两个前端错误反馈细节：
+  - 上传失败的中文错误不再被 3 秒轮询立即清掉
+  - 无效 / 失效 / 撤销 token 首屏会优先展示后端返回的具体中文 `message`
+- 本轮用 Playwright CLI 替代 `agent-browser` 完成生产复验，主要结果：
+  - TC-01 核心入口：`https://zzetz.cn` 首页 CTA 可稳定弹出 token 输入区
+  - TC-03 有效 token 进入：`IKt3X1jdHbhs_AgsL0JOENOI95kiEpaN` 可进入 session，显示欢迎语和输入区
+  - TC-04 发送链路：发送长消息后，右侧用户消息持续可见，页面显示 `思考中...`
+  - TC-05 上传链路：
+    - `zzetz-e2e.png` 缩略图可见，刷新后历史回放仍在
+    - 预览接口恢复正常，`/attachments/10/preview` 返回真实 PNG
+    - 上传 `zzetz-e2e.pdf` 时，页面稳定显示 `只支持 PNG、JPEG、WEBP 图片`
+  - TC-06 文档生成链路：
+    - 同一会话进入 `completed`
+    - 页面弹出“您的网站将于3-24小时内上线”
+    - header 展示 successor token `lp5D5VE2i6HMmOrWt9HXRhiakkbYsqVx`
+    - 点击“确认”后回到首页
+    - successor token 可进入修订轮，显示上一版摘要与“欢迎回来”
+    - 撤销 successor token 后，页面显示 `这个整理链接已经失效，请联系管理员获取新的入口。`
+
+**Files changed**
+- `scripts/deploy-zzetz-cn.sh`
+- `frontend/src/routes/session-page.tsx`
+- `frontend/src/test/session-flow.test.tsx`
+- `frontend/src/test/session-page.test.tsx`
+
+**Validation run**
+- 本地前端验证：
+  - `cd frontend && npm test`
+  - `cd frontend && npm run build`
+  - 其中新增回归覆盖：
+    - 上传失败错误不会被轮询立即清掉
+    - 首屏优先展示后端返回的无效 token 中文错误
+- 生产部署：
+  - `git push origin main`
+  - 远端执行 `bash scripts/deploy-zzetz-cn.sh`
+- 生产运行时排查：
+  - `journalctl -u zzetz-backend -n 80 --no-pager`
+  - `systemctl status zzetz-backend --no-pager -n 20`
+  - `curl https://zzetz.cn/api/sessions/IKt3X1jdHbhs_AgsL0JOENOI95kiEpaN/attachments/10/preview`
+- Playwright 公网复验：
+  - `bash skills/playwright/scripts/playwright_cli.sh -s=zzetz-user ...`
+  - `bash skills/playwright/scripts/playwright_cli.sh -s=zzetz-revision ...`
+
+**Validation result**
+- 前端单测全量通过：`27 passed`
+- 前端构建通过
+- 生产部署成功，健康检查正常
+- 生产附件预览从 `500` 恢复为 `200`
+- 生产页面级验证支持“缩略图、上传错误透传、文档生成完成、修订链入口、撤销后失效提示”均正常
+
+**Notes**
+- 这轮没有再改动后端业务逻辑；生产 `500` 的核心问题是部署脚本未重启服务
+- `agent-browser` 在本项目公网点击链路上仍不稳定，后续公网 E2E 应优先使用 Playwright CLI
+- repo 内 `skills/`、`.playwright-cli/`、`output/` 目前仍是本地辅助目录，未纳入本次提交
 
 ## Newly identified issues
 

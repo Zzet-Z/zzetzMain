@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：本地前端补丁已经部署到生产；线上首页已切到新 bundle，健康检查、后台列表 API、新签发 token 的 session API 都正常；但生产首页 CTA 与后台登录按钮在 `agent-browser` 下仍存在点击不稳定，当前更像自动化证据不足而不是明确业务回归
-- 当前应执行任务：如继续推进，应优先在更稳定的浏览器控制链路下重跑 `E2E_TEST_CASES.md` 的 TC-01~TC-06；若仍有线上异常，再继续定位首页 CTA 点击链路与 `/api/admin/tokens` 偶发 `500`
-- 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现；本轮前端补丁已上线：首页 CTA 不再残留“正在准备梳理页...”，session 首屏失败时会直接展示中文错误提示；验收侧仍保留“先滚动到按钮进入视口，再 snapshot 后点击”的固定流程
+- 当前状态：生产复验已经完成；部署脚本已修复为每次发布后显式重启 `zzetz-backend`，附件预览 `500` 已消失，Playwright 公网 E2E 已验证上传缩略图、上传错误透传、文档生成 completed、successor token 修订链与撤销后失效提示
+- 当前应执行任务：如继续推进，优先处理运维尾项而不是继续追历史缺陷：替换生产临时 `ADMIN_TOKEN=admin-secret`，决定是否正式纳入 repo 内 `skills/playwright/`，并在后续公网回归中优先使用 Playwright CLI
+- 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现；本轮又补了两处稳定性修复：上传失败中文错误不会被轮询立即清掉；session 首屏会优先展示后端返回的无效 / 失效 token 中文原因
 
 ## 已完成的关键文档
 - MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -86,41 +86,37 @@
 下一次会话如果继续推进，优先级建议改为：
 
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
-2. 阅读 `OPERATIONS.md` 中“公网 E2E 浏览器规程”，按“先滚动、再 snapshot、再点击”的顺序执行页面级验收
-3. 用更稳定的浏览器控制方式重跑 `E2E_TEST_CASES.md` 的 TC-01~TC-06；其中优先确认首页 CTA、新签发 token 首屏、聊天页 `发送` / `ready_to_generate`、后台 `撤销 Token`
-4. 如浏览器自动化仍无法稳定触发首页 CTA / 后台登录按钮，不要直接判定业务回归；先用 API 验证状态，再回到页面核对渲染结果
-5. 若后续仍观察到真实线上异常，再继续排查生产 `/api/admin/tokens` 偶发 `500` 与首页 CTA 的真实点击链路
+2. 优先阅读 `DOCUMENTATION.md` 中 2026-04-10 的 “Production rerun: 修复部署脚本重启缺口并完成 Playwright 公网复验”
+3. 如继续做公网回归，直接使用 `skills/playwright/scripts/playwright_cli.sh`，不要再把 `agent-browser` 的点击不稳定当作业务结论
+4. 先处理运维尾项：替换生产 `ADMIN_TOKEN=admin-secret`，再决定是否把本地 `skills/` / `.playwright-cli/` / `output/` 作为正式仓库策略处理
+5. 若后续又出现“代码文件已更新但线上行为未更新”，先检查部署脚本是否真的重启了服务，再看业务代码
 
 ---
 
 ## 生产环境浏览器验收结论（2026-04-10）
 
-本轮通过 Claude Code 浏览器自动化（`mcp__claude-in-chrome`）对 `https://zzetz.cn` 进行了完整页面级探索，结论如下：
+本轮改用 repo 内 `skills/playwright/` 的 Playwright CLI 对 `https://zzetz.cn` 做了完整公网复验，核心结论如下：
 
 ### 已验证正常
-- 首页五段式内容完整渲染（Hero / 痛点 / 流程 / 产出预览 / 底部 CTA）
-- 后台 `/admin` 鉴权登录正常，共 34 条 token 记录可见
-- 后台 token 签发：填写备注后"签发新 Token"，token 立即出现在列表，状态 `awaiting_user`，消息数为 1（欢迎语自动生成）
-- 已完成 session（`QR4ADmYU4z0CfHcvKvmhmPCHxP7yL-WD`）进入对话页：状态 `completed`，聊天历史正确渲染，弹框"您的网站将于3-24小时内上线"出现，顶部展示后续修订 Token
-- 弹框"确认"后正确跳转回首页
-- 修订会话（`WrjYCVPqAikNJVYnfntTMRDKdq_VHWES`）进入对话页：显示上一版摘要、修订欢迎语，底部输入区可用（文本框 + 选择文件 + 发送按钮）
-- 后台 token 详情面板：状态、备注、消息数、附件数、文档状态、后续修订 TOKEN、创建/完成/失效时间、摘要、最终文档 PRD 全文均正确展示
+- 首页 CTA 可稳定弹出 token 输入区，不再出现“正在准备梳理页...”
+- 新签发 token 与既有 token 都能进入 session 页面，不再停留在永久“正在加载...”
+- 消息发送后，右侧用户消息持续可见，页面出现 `思考中...`
+- 图片上传后缩略图可见，刷新后历史回放仍在
+- 附件预览接口已恢复，`/attachments/<id>/preview` 返回真实图片而非 `500`
+- 上传非法 `pdf` 文件时，页面稳定显示 `只支持 PNG、JPEG、WEBP 图片`
+- 在携带参考图的真实对话中，assistant 生成的最终文档明确引用了上传附件 `zzetz-e2e.png`
+- 同一会话成功进入 `completed`，弹出“您的网站将于3-24小时内上线”，并展示 successor token `lp5D5VE2i6HMmOrWt9HXRhiakkbYsqVx`
+- 点击弹框“确认”后已回到首页
+- successor token 可进入修订轮，展示上一版摘要与“欢迎回来”
+- 撤销 successor token 后，页面显示 `这个整理链接已经失效，请联系管理员获取新的入口。`
 
-### 待修复缺陷
+### 已定位并修复的线上根因
+- 生产附件预览 `500` 的根因不是上传路由，而是 `scripts/deploy-zzetz-cn.sh` 没有重启已运行的 `zzetz-backend`
+- 部署脚本现已改为每次发布后显式 `systemctl restart zzetz-backend`
 
-**BUG-01（P0）：首页 CTA 按钮进入永久 loading 态**
-- 现象：点击"开始梳理我的网站"后，按钮文案切换为"正在准备梳理页..."并永久停留，不弹出 token 输入框，不跳转 `/session/:token`
-- 预期：应展示 token 输入对话框，用户粘贴 token 后再跳转
-- 可能原因：`frontend/src/routes/home-page.tsx` 中 CTA 点击逻辑可能仍调用 `createSession()`（匿名创建），后端已拒绝匿名请求，但前端未处理失败态，导致 loading 永不结束
-- 建议排查：检查 `home-page.tsx` CTA onClick 逻辑，应替换为 token 输入 UI，移除 `createSession` 调用
-
-**BUG-02（P1）：新签发 token 的 session 页面永久 loading**
-- 现象：访问刚签发的新 token（`/session/kmfXpsQUwq_uyIPzUVqpxU0SldmbySrq`），页面只显示"正在加载..."，无法渲染聊天界面
-- 而已有多条消息的 awaiting_user token（`WrjYCVPqAikNJVYnfntTMRDKdq_VHWES`）可以正常加载
-- 可能原因：新签发 token 的 session `status` 字段与前端渲染逻辑不匹配（如状态为 `draft` 或 `in_progress` 而非 `awaiting_user`），前端轮询未正确处理初始状态
-
-### E2E 测试用例
-详见根目录 `E2E_TEST_CASES.md`，共 6 条，覆盖首页入口 / 后台管理 / 会话加载 / 消息发送 / 附件上传 / 文档生成全链路。
+### 剩余注意事项
+- 公网 E2E 不要再把 `agent-browser` 的点击结果当作业务最终结论；当前项目上 Playwright CLI 稳定性明显更高
+- 生产仍临时使用 `ADMIN_TOKEN=admin-secret`，需要后续替换
 
 ## 当前仓库里重要但只读的区域
 - `docs/superpowers/specs/`
@@ -129,6 +125,8 @@
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `a0a9ddf` `fix: surface invalid session errors on load`
+- `b39538f` `fix: preserve upload errors and restart backend on deploy`
 - `f68d89f` `fix: harden homepage entry and session load states`
 - `00af3d1` `fix: close post-launch chat-first gaps`
 - `730df9c` `fix: complete sessions after final document`
