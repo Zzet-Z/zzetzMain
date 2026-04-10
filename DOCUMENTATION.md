@@ -5,8 +5,8 @@
 
 ## Current status
 - Current milestone: Chat-first post-launch follow-up fixes
-- Current task: Follow-up frontend hardening - 修复首页 CTA 本地永久 loading 与 session 首次加载失败的无限 loading 兜底
-- Status: Implemented locally, validated by tests/build and local browser checks; production redeploy and full public E2E still pending
+- Current task: Production redeploy and post-deploy E2E rerun
+- Status: Frontend hardening has been deployed to production; health checks passed; public API and direct session path revalidated; homepage/admin button clicks via agent-browser remain inconclusive
 - Last updated: 2026-04-10
 
 ---
@@ -84,6 +84,55 @@
 ---
 
 ## Task log
+
+### [2026-04-10] Deploy: 发布前端补丁并复验生产关键路径
+**Summary**
+- 将本地 `main` 推到 `origin/main`，最新运行时代码已包含：
+  - 首页 CTA 去除本地永久 loading 残留
+  - session 首次加载失败时直接展示中文错误提示
+- 使用云机 `/opt/zzetzMain/scripts/deploy-zzetz-cn.sh` 完成生产部署：
+  - 服务器仓库 fast-forward 到 `f68d89f`
+  - 前端重新构建，线上首页已切到新 bundle `index-DoBbpvD5.js`
+  - 后端依赖更新、systemd 重载、nginx 配置校验与 reload 完成
+- 部署后复验结果：
+  - 健康检查正常：`http://127.0.0.1:5050/api/health` 与 `https://zzetz.cn/api/health` 都返回 `{"status":"ok"}`
+  - 生产后台 API 正常：`GET /api/admin/tokens` 使用 `admin-secret` 返回 200，且能看到新签发 token
+  - 生产新 token API 正常：`GET /api/sessions/IKt3X1jdHbhs_AgsL0JOENOI95kiEpaN` 返回 `awaiting_user`、欢迎语与 `pending` 文档
+  - 生产首页 HTML 已更新到新 bundle，确认不是“旧代码未部署”
+- 自动化浏览器复验结论：
+  - 生产首页 CTA 在 `agent-browser click` 下仍未稳定弹出 token 输入区
+  - 生产后台“进入后台”按钮在 `agent-browser click` 下同样存在不稳定现象
+  - 由于同一 bundle 在本地浏览器中可稳定触发 CTA，而线上静态资源也已更新，这轮更接近“生产页面上的 agent-browser 点击证据不足”，不能单凭这次自动化结果认定业务仍有回归
+
+**Files changed**
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- 发布：
+  - `git push origin main`
+  - 远端执行 `bash scripts/deploy-zzetz-cn.sh`
+- 生产检查：
+  - `curl https://zzetz.cn/`
+  - `curl https://zzetz.cn/assets/index-DoBbpvD5.js`
+  - `curl https://zzetz.cn/api/health`
+  - `curl https://zzetz.cn/api/admin/tokens -H 'Authorization: Bearer admin-secret'`
+  - `curl https://zzetz.cn/api/sessions/IKt3X1jdHbhs_AgsL0JOENOI95kiEpaN`
+- 浏览器复验：
+  - `agent-browser open https://zzetz.cn`
+  - `agent-browser open https://zzetz.cn/admin`
+  - `agent-browser open https://zzetz.cn/session/IKt3X1jdHbhs_AgsL0JOENOI95kiEpaN`
+
+**Validation result**
+- 生产部署成功
+- 生产健康检查成功
+- 后台鉴权 API 与新 token 的 session API 成功
+- 生产前端静态资源已更新到包含本轮补丁的新 bundle
+- 页面级自动化点击仍有不稳定性，完整 TC-01~TC-06 仍需在更稳定的浏览器控制链路下补一轮
+
+**Notes**
+- 当前最稳的结论是：生产代码已更新，后端/API 正常，直接 session 路径正常；首页和后台按钮的 `agent-browser` 点击结果仍不能直接当作业务结论
+- 如要继续做公网 E2E，优先考虑更稳定的浏览器控制方式，或先用 API 建立前置状态，再回到页面核对渲染结果
 
 ### [2026-04-10] Follow-up: 修复首页 CTA 本地 loading 残留与 session 首屏失败兜底
 **Summary**

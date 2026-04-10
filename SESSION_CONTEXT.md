@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：主线功能与 F1-F6 follow-up 修复已完成；本轮继续沿 `SESSION_CONTEXT` 做了前端补强，已修掉首页 CTA 的本地永久 loading 残留，以及 session 首次加载失败时无限停留在“正在加载...”的问题
-- 当前应执行任务：下一步应把本地前端修复部署到生产，再按 `E2E_TEST_CASES.md` 完整复验 TC-01~TC-06；如果继续排查线上问题，优先关注部署后首页 CTA 与 `/api/admin/tokens` 偶发 `500`
-- 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现；本轮去掉了首页 CTA 的伪 loading，并让 session 首屏失败时直接展示中文错误提示；验收侧保留“先滚动到按钮进入视口，再 snapshot 后点击”的固定流程
+- 当前状态：本地前端补丁已经部署到生产；线上首页已切到新 bundle，健康检查、后台列表 API、新签发 token 的 session API 都正常；但生产首页 CTA 与后台登录按钮在 `agent-browser` 下仍存在点击不稳定，当前更像自动化证据不足而不是明确业务回归
+- 当前应执行任务：如继续推进，应优先在更稳定的浏览器控制链路下重跑 `E2E_TEST_CASES.md` 的 TC-01~TC-06；若仍有线上异常，再继续定位首页 CTA 点击链路与 `/api/admin/tokens` 偶发 `500`
+- 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现；本轮前端补丁已上线：首页 CTA 不再残留“正在准备梳理页...”，session 首屏失败时会直接展示中文错误提示；验收侧仍保留“先滚动到按钮进入视口，再 snapshot 后点击”的固定流程
 
 ## 已完成的关键文档
 - MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -86,10 +86,10 @@
 下一次会话如果继续推进，优先级建议改为：
 
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
-2. 先部署本地前端补丁：首页 CTA 不再残留“正在准备梳理页...”，session 首屏失败会直接展示错误提示
-3. 阅读 `OPERATIONS.md` 中“公网 E2E 浏览器规程”，按“先滚动、再 snapshot、再点击”的顺序执行页面级验收
-4. 按 `E2E_TEST_CASES.md` 重新执行 TC-01~TC-06；其中优先确认首页 CTA、新签发 token 首屏、聊天页 `发送` / `ready_to_generate`、后台 `撤销 Token`
-5. 如部署后仍有异常，再继续排查生产 `/api/admin/tokens` 偶发 `500` 与首页 CTA 的真实点击链路
+2. 阅读 `OPERATIONS.md` 中“公网 E2E 浏览器规程”，按“先滚动、再 snapshot、再点击”的顺序执行页面级验收
+3. 用更稳定的浏览器控制方式重跑 `E2E_TEST_CASES.md` 的 TC-01~TC-06；其中优先确认首页 CTA、新签发 token 首屏、聊天页 `发送` / `ready_to_generate`、后台 `撤销 Token`
+4. 如浏览器自动化仍无法稳定触发首页 CTA / 后台登录按钮，不要直接判定业务回归；先用 API 验证状态，再回到页面核对渲染结果
+5. 若后续仍观察到真实线上异常，再继续排查生产 `/api/admin/tokens` 偶发 `500` 与首页 CTA 的真实点击链路
 
 ---
 
@@ -129,6 +129,7 @@
 除非明确是在维护文档，否则实现阶段不要改这两个目录。
 
 ## 最近重要提交
+- `f68d89f` `fix: harden homepage entry and session load states`
 - `00af3d1` `fix: close post-launch chat-first gaps`
 - `730df9c` `fix: complete sessions after final document`
 - `572d2a1` `fix: clarify assistant thinking state`
