@@ -24,13 +24,15 @@ def _load_env_file() -> None:
 def get_default_config() -> dict[str, object]:
     _load_env_file()
 
-    upload_dir = os.environ.get("UPLOAD_FOLDER", "uploads")
+    upload_dir = Path(os.environ.get("UPLOAD_FOLDER", "uploads"))
+    if not upload_dir.is_absolute():
+        upload_dir = (BASE_DIR / upload_dir).resolve()
     flask_env = os.environ.get("FLASK_ENV", "development")
 
     return {
         "SECRET_KEY": os.environ.get("SECRET_KEY", "dev"),
         "DATABASE_URL": os.environ.get("DATABASE_URL", "sqlite:///app.db"),
-        "UPLOAD_DIR": upload_dir,
+        "UPLOAD_DIR": str(upload_dir),
         "ADMIN_TOKEN": os.environ.get("ADMIN_TOKEN", ""),
         "SESSION_IDLE_TIMEOUT_SECONDS": int(
             os.environ.get("SESSION_IDLE_TIMEOUT_SECONDS", "300")

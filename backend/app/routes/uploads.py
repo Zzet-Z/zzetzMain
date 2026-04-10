@@ -15,17 +15,30 @@ from .sessions import load_session_for_frontend
 uploads_bp = Blueprint("uploads", __name__)
 
 
-def resolve_attachment_file_path(raw_path: str) -> Path:
+def resolve_attachment_file_path(raw_path: str, *, token: str, file_name: str) -> Path:
     file_path = Path(raw_path)
+    candidates: list[Path] = []
+
     if file_path.is_absolute():
-        return file_path
+        candidates.append(file_path)
+    else:
+        configured_dir = Path(current_app.config["UPLOAD_DIR"])
+        if not configured_dir.is_absolute():
+            configured_dir = (Path.cwd() / configured_dir).resolve()
 
-    cwd_candidate = (Path.cwd() / file_path).resolve()
-    if cwd_candidate.exists():
-        return cwd_candidate
+        candidates.extend(
+            [
+                configured_dir / token / file_name,
+                (Path.cwd() / file_path).resolve(),
+                (Path(current_app.root_path).parent / file_path).resolve(),
+            ]
+        )
 
-    app_candidate = (Path(current_app.root_path).parent / file_path).resolve()
-    return app_candidate
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return candidates[0] if candidates else file_path
 
 
 @uploads_bp.post("/sessions/<token>/attachments")
@@ -103,7 +116,11 @@ def get_attachment_preview(token: str, attachment_id: int):
     if record is None:
         return jsonify({"message": "附件不存在。"}), 404
 
-    file_path = resolve_attachment_file_path(record.file_path)
+    file_path = resolve_attachment_file_path(
+        record.file_path,
+        token=session.token,
+        file_name=record.file_name,
+    )
     if not file_path.exists():
         return jsonify({"message": "附件不存在。"}), 404
 
