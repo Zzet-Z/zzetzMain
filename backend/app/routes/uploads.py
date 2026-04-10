@@ -15,6 +15,19 @@ from .sessions import load_session_for_frontend
 uploads_bp = Blueprint("uploads", __name__)
 
 
+def resolve_attachment_file_path(raw_path: str) -> Path:
+    file_path = Path(raw_path)
+    if file_path.is_absolute():
+        return file_path
+
+    cwd_candidate = (Path.cwd() / file_path).resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+
+    app_candidate = (Path(current_app.root_path).parent / file_path).resolve()
+    return app_candidate
+
+
 @uploads_bp.post("/sessions/<token>/attachments")
 def create_attachment(token: str):
     db = SessionLocal()
@@ -90,7 +103,7 @@ def get_attachment_preview(token: str, attachment_id: int):
     if record is None:
         return jsonify({"message": "附件不存在。"}), 404
 
-    file_path = Path(record.file_path)
+    file_path = resolve_attachment_file_path(record.file_path)
     if not file_path.exists():
         return jsonify({"message": "附件不存在。"}), 404
 

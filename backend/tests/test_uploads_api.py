@@ -6,12 +6,12 @@ from app.db import SessionLocal
 from app.models import DocumentRecord, SessionRecord
 
 
-def build_app(tmp_path):
+def build_app(tmp_path, upload_dir: str | None = None):
     return create_app(
         {
             "TESTING": True,
             "DATABASE_URL": f"sqlite:///{tmp_path / 'upload.db'}",
-            "UPLOAD_DIR": str(tmp_path / "uploads"),
+            "UPLOAD_DIR": upload_dir or str(tmp_path / "uploads"),
             "ADMIN_TOKEN": "admin-secret",
         }
     )
@@ -111,3 +111,25 @@ def test_upload_rejects_when_attachment_count_exceeds_limit(tmp_path):
 
     assert overflow_response.status_code == 400
     assert overflow_response.get_json() == {"message": "当前会话最多上传 12 张图片"}
+
+
+def test_preview_works_when_attachment_path_is_relative(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    app = build_app(tmp_path, upload_dir="uploads")
+    client = app.test_client()
+    token = seed_session(app)
+
+    response = client.post(
+        f"/api/sessions/{token}/attachments",
+        data={"file": (BytesIO(b"binary"), "reference.png"), "caption": "首页参考"},
+        content_type="multipart/form-data",
+    )
+
+    payload = response.get_json()
+    assert response.status_code == 201
+    assert payload["file_path"] == f"uploads/{token}/reference.png"
+
+    preview_response = client.get(payload["preview_url"])
+    assert preview_response.status_code == 200
+    assert preview_response.mimetype == "image/png"
