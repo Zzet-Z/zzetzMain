@@ -216,3 +216,25 @@ test("completed 会话会弹出上线提示，确认后返回首页", async () =
     expect(screen.getByRole("heading", { name: "把你想要的网站，说出来。" })).toBeInTheDocument();
   });
 });
+
+test("首次加载会话失败时展示错误提示而不是永久停留在加载态", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/sessions/demo-token")) {
+        return new Response(JSON.stringify({ message: "读取会话失败" }), { status: 500 });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    }),
+  );
+
+  render(
+    <MemoryRouter initialEntries={["/session/demo-token"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("暂时无法读取当前会话，请稍后刷新重试。")).toBeInTheDocument();
+  expect(screen.queryByText("正在加载...")).not.toBeInTheDocument();
+});

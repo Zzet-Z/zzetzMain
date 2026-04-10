@@ -66,3 +66,19 @@ test("输入 token 后可以跳转到聊天页", () => {
     expect(window.location.pathname).toBe("/session/demo-token");
   });
 });
+
+test("点击首页 CTA 后会展示 token 输入区且不进入永久 loading", () => {
+  window.history.pushState({}, "", "/");
+
+  render(
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>,
+  );
+
+  fireEvent.click(screen.getAllByRole("button", { name: "开始梳理我的网站" })[0]);
+
+  expect(screen.getByRole("heading", { level: 2, name: "输入管理员签发的访问 Token" })).toBeInTheDocument();
+  expect(screen.getByLabelText("访问 Token")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "正在准备梳理页..." })).not.toBeInTheDocument();
+});

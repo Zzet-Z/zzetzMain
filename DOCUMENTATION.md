@@ -5,9 +5,9 @@
 
 ## Current status
 - Current milestone: Chat-first post-launch follow-up fixes
-- Current task: Task F1-F6 recovery sync - 已确认代码中的 6 个 follow-up 修复已落地，并补做状态归档
-- Status: Implemented locally, validated by tests/build, committed on `main`
-- Last updated: 2026-04-09
+- Current task: Follow-up frontend hardening - 修复首页 CTA 本地永久 loading 与 session 首次加载失败的无限 loading 兜底
+- Status: Implemented locally, validated by tests/build and local browser checks; production redeploy and full public E2E still pending
+- Last updated: 2026-04-10
 
 ---
 
@@ -84,6 +84,51 @@
 ---
 
 ## Task log
+
+### [2026-04-10] Follow-up: 修复首页 CTA 本地 loading 残留与 session 首屏失败兜底
+**Summary**
+- 针对 `SESSION_CONTEXT.md` 中的 BUG-01 / BUG-02 继续做前端排查，先验证根因，再做最小修复
+- 线上复验结果：
+  - 通过生产 API 新签发 token `cEBTS_U5xqhEwEhTVhA6hto59wKIbSxO` 后，`GET /api/sessions/<token>` 已能正常返回 `awaiting_user`、欢迎语和 `pending` 文档
+  - 直接访问生产 `/session/<token>` 当前也能打开聊天页，因此 BUG-02 在本轮未复现为后端契约故障
+  - 生产首页 CTA 通过 `agent-browser click` 仍无法稳定证明业务是否异常，因此不把这轮结果当作“线上已修复”，只作为自动化证据不足
+- 本地代码层面确认并修复了两个真实风险：
+  - 首页 `Hero` / `FinalCta` 组件点击后会把按钮切到“正在准备梳理页...”，但当前入口流程已经是同步显示 token 输入区，这个 loading 没有回收路径，属于残留错误状态
+  - `SessionPage` 首次 `getSession()` 失败时只记录 `errorMessage`，但仍保持 `session === null`，页面会永久停在“正在加载...”
+- 修复策略：
+  - 去掉首页 CTA 的本地 loading 状态，只保留真实外部 loading
+  - 当 session 首次加载失败且尚未拿到 payload 时，直接渲染中文错误提示页，而不是继续显示 loading
+- 同步补了前端回归测试，锁住上述两个场景
+
+**Files changed**
+- `frontend/src/components/home/hero.tsx`
+- `frontend/src/components/home/final-cta.tsx`
+- `frontend/src/routes/session-page.tsx`
+- `frontend/src/test/home-page.test.tsx`
+- `frontend/src/test/session-page.test.tsx`
+- `DOCUMENTATION.md`
+- `SESSION_CONTEXT.md`
+
+**Validation run**
+- `cd frontend && npm test -- --run src/test/home-page.test.tsx src/test/session-page.test.tsx`
+- `cd frontend && npm test`
+- `cd frontend && npm run build`
+- 生产 API 抽样复验：
+  - `POST https://zzetz.cn/api/admin/tokens`
+  - `GET https://zzetz.cn/api/sessions/cEBTS_U5xqhEwEhTVhA6hto59wKIbSxO`
+- 本地浏览器复验（`agent-browser`）：
+  - `http://127.0.0.1:4173/` 点击首页 CTA 后出现 token 输入区，未再出现“正在准备梳理页...”
+  - `http://127.0.0.1:4174/session/demo-token` 在无后端场景下展示“暂时无法读取当前会话，请稍后刷新重试。”
+
+**Validation result**
+- 前端单测全量通过：`25 passed`
+- 前端生产构建通过
+- 本地页面级验证支持“CTA 不再残留 loading、session 首屏失败可见错误提示”的结论
+
+**Notes**
+- 这轮修复的是本地代码中的确定性问题；生产站点要体现这些修复仍需要部署
+- BUG-02 这轮没有在生产 API 或生产页面上稳定复现，后续应在部署后重新按 `E2E_TEST_CASES.md` 跑 TC-01~TC-06
+- `agent-browser` 在生产首页 CTA 上的点击结果仍有不稳定性，不能单凭这轮自动化结果下“线上仍坏”或“线上已好”的结论
 
 ### [2026-04-10] Follow-up: 固化公网 E2E 的先滚动后点击规程
 **Summary**

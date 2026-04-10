@@ -384,6 +384,14 @@ export function SessionPage({
     );
   }
 
+  if (!session && errorMessage) {
+    return (
+      <main className="px-4 py-6 text-white">
+        <p>{errorMessage}</p>
+      </main>
+    );
+  }
+
   if (!session) {
     return <main className="px-4 py-6 text-white">正在加载...</main>;
   }

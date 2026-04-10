@@ -21,9 +21,9 @@
 
 ## 当前阶段
 - 当前分支：`main`
-- 当前状态：主线功能与 F1-F6 follow-up 修复已完成；本轮新增的是公网 E2E 验收规程归档，已确认 `agent-browser click` 的主要不稳定根因是“视口外元素未自动滚入可点击区域”
-- 当前应执行任务：如继续推进，应优先按 `OPERATIONS.md` 的公网 E2E 规程复验；如果要继续排查线上问题，优先看生产 `/api/admin/tokens` 偶发 `500`
-- 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现；验收侧新增了“先滚动到按钮进入视口，再 snapshot 后点击”的固定流程
+- 当前状态：主线功能与 F1-F6 follow-up 修复已完成；本轮继续沿 `SESSION_CONTEXT` 做了前端补强，已修掉首页 CTA 的本地永久 loading 残留，以及 session 首次加载失败时无限停留在“正在加载...”的问题
+- 当前应执行任务：下一步应把本地前端修复部署到生产，再按 `E2E_TEST_CASES.md` 完整复验 TC-01~TC-06；如果继续排查线上问题，优先关注部署后首页 CTA 与 `/api/admin/tokens` 偶发 `500`
+- 当前代码状态：首页 token 入口、单聊天窗口、后台 token 管理已经落地；F6 文档生成切换、F1 发送态消息回显、F2 上传错误透传、F3 附件注入对话上下文、F4 附件缩略图与历史回放、F5 后台详情扩展均已在当前代码中实现；本轮去掉了首页 CTA 的伪 loading，并让 session 首屏失败时直接展示中文错误提示；验收侧保留“先滚动到按钮进入视口，再 snapshot 后点击”的固定流程
 
 ## 已完成的关键文档
 - MVP 产品规格：`docs/superpowers/specs/2026-04-08-personal-site-homepage-and-intake-design.md`
@@ -86,10 +86,10 @@
 下一次会话如果继续推进，优先级建议改为：
 
 1. 按 `AGENTS.md` 阅读顺序恢复上下文
-2. 先阅读 `OPERATIONS.md` 中“公网 E2E 浏览器规程”，按“先滚动、再 snapshot、再点击”的顺序执行页面级验收
-3. **首要任务：修复 TC-01 生产缺陷（首页 CTA 入口阻塞）**，详见下方“待修复缺陷”与 `E2E_TEST_CASES.md`
-4. 执行 `E2E_TEST_CASES.md` 中的 6 条端对端用例，逐一在 `https://zzetz.cn` 上复验；其中重点关注聊天页 `发送`、`ready_to_generate` 与后台 `撤销 Token`
-5. 对生产环境抽样复验 F6/F1/F2/F3/F4/F5 的真实链路；若继续排障，再优先复现并定位生产 `/api/admin/tokens` 偶发 `500`
+2. 先部署本地前端补丁：首页 CTA 不再残留“正在准备梳理页...”，session 首屏失败会直接展示错误提示
+3. 阅读 `OPERATIONS.md` 中“公网 E2E 浏览器规程”，按“先滚动、再 snapshot、再点击”的顺序执行页面级验收
+4. 按 `E2E_TEST_CASES.md` 重新执行 TC-01~TC-06；其中优先确认首页 CTA、新签发 token 首屏、聊天页 `发送` / `ready_to_generate`、后台 `撤销 Token`
+5. 如部署后仍有异常，再继续排查生产 `/api/admin/tokens` 偶发 `500` 与首页 CTA 的真实点击链路
 
 ---
 

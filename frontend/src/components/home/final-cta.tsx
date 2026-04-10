@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { Button } from "../ui/button";
 
 export function FinalCta({
@@ -9,13 +7,6 @@ export function FinalCta({
   loading: boolean;
   onStart: () => void;
 }) {
-  const [localLoading, setLocalLoading] = useState(false);
-
-  function handleStart() {
-    setLocalLoading(true);
-    onStart();
-  }
-
   return (
     <section className="px-6 py-16 sm:px-8 sm:py-24">
       <div className="mx-auto max-w-[980px] rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(39,39,41,0.96),rgba(24,24,26,0.96))] px-6 py-8 sm:px-10 sm:py-12">
@@ -26,7 +17,7 @@ export function FinalCta({
           <p className="text-[17px] leading-[1.7] text-white/68">
             不用一次说完整，只要先说出你想做的网站，我们会一步一步把它整理成可执行方案。
           </p>
-          <Button loading={loading || localLoading} onClick={handleStart}>
+          <Button loading={loading} onClick={onStart}>
             开始梳理我的网站
           </Button>
         </div>
